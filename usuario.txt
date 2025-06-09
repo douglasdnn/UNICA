@@ -1,0 +1,5 @@
+[vars]
+LOGIN = dodonin
+SENHA = Ncc1701@12345
+SENHA_ETHEMIS = Ncc1701@12345
+DOWNLOADPATH = D:\Processos\eproc
