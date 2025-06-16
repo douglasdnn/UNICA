@@ -1,12 +1,14 @@
 import pandas as pd
 import sqlite3
 
+nome=input("Qual é o nome do arquivo?")
+comarca=input("Qual é o nome da comarca?")
 # Caminho do arquivo XLS/XLSX
-caminho_arquivo = 'rel.xltx'  # ou .xlsx
+caminho_arquivo = f'{nome}.xltx'  # ou .xlsx
 # Nome do banco SQLite
-caminho_banco = 'minutas.db'
+caminho_banco = f'{nome}.db'
 # Nome da tabela no SQLite
-nome_tabela = 'minutas'
+nome_tabela = f'{comarca}'
 # Ler o arquivo Excel em um DataFrame
 df = pd.read_excel(caminho_arquivo)
 # Adicionar uma coluna 'id' baseada no número da linha (começando em 1)
@@ -18,9 +20,9 @@ df.to_sql(nome_tabela, conn, if_exists='replace', index=False)
 conn.close()
 print("Importação concluída com sucesso.")
 
-conn = sqlite3.connect('minutas.db')
+conn = sqlite3.connect(f'{nome}.db')
 cursor = conn.cursor()
-query='ALTER TABLE minutas ADD conteudo TEXT;'
+query=f'ALTER TABLE {comarca} ADD conteudo TEXT;'
 cursor.execute(query)
 conn.commit()
 conn.close()
