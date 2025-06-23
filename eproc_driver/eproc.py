@@ -7,6 +7,8 @@ from selenium.webdriver.chrome.options import Options
 from pathlib import Path
 from selenium.webdriver.common.keys import Keys
 import os
+from selenium.common.exceptions import TimeoutException
+from bs4 import BeautifulSoup
 
 #Driver do eproc
 print("Driver do Eproc importado")
@@ -79,6 +81,14 @@ def entrar_no_processo(driver, eproc):
     time.sleep(1)
     driver.find_element(By.CSS_SELECTOR, ".d-none .btn-pesquisar > .material-icons").click()
     time.sleep(1)
+    # Aguarda até que o body esteja presente, indicando que a página carregou
+    try:
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+        print("Página do processo carregada com sucesso.")
+    except TimeoutException:
+        print("Falha ao carregar a página do processo.")
 
 def pesquisa_lista_processos_certificar(driver):
     driver.find_element(By.CSS_SELECTOR, "a:nth-child(2) > .material-icons").click()
