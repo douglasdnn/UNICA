@@ -1,14 +1,42 @@
-import time
 from selenium import webdriver
+from selenium.webdriver.support.select import Select
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.chrome.options import Options
-from pathlib import Path
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.alert import Alert
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import TimeoutException, WebDriverException
+from webdriver_manager.chrome import ChromeDriverManager
+
+#Bibliotecas de Sistema
+import time
+import re
+import csv
 import os
-from selenium.common.exceptions import TimeoutException
+import psutil
 from bs4 import BeautifulSoup
+from eproc_driver import eproc as eproc
+import sqlite3
+from pathlib import Path
+import io
+import pandas as pd
+
+#bibliotecas de configuração
+import pyotp
+import configparser
+import keyring
+
+#bibliotecas de automação
+import pyperclip
+import pyautogui
+
+#Bibliotecas de IA
+from gemini import gemini as gemini
+import ollama
 
 #Driver do eproc
 print("Driver do Eproc importado")
@@ -61,10 +89,18 @@ def preenche_login(driver, usuario, senha, tempo):
     driver.find_element(By.ID, "pwdSenha").send_keys(Keys.ENTER)
     time.sleep(tempo+5)
 
-def escolhe_perfil(driver, css, child):
-#escolhe o perfil em uso (0, 1, 2, 3, 4, etc)
-    driver.find_element(By.CSS_SELECTOR, "#tr"+str(css)+" > div:nth-child("+str(child)+")").click()
-    time.sleep(3)
+#entra no perfil selecionado
+def entrar_no_perfil(driver, perfil):
+    try:
+        perfil_div = driver.find_element(By.XPATH, f"//div[contains(text(), '{perfil}')]")
+        perfil_div.click()
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+        print(f"Perfil carregado: {perfil}")
+    except NoSuchElementException:
+        print(f"Perfil '{perfil}' não encontrado.")
+        return    
 
 #passa o aviso de sessão encerrada, se necessário
 def pula_mensagens(driver):
