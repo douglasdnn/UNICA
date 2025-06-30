@@ -74,7 +74,7 @@ def novo_browser(download_directory):
     print("Driver do Eproc importado")
     return browser
 
-def login_no_eproc (browser, username, password, pyotop_code):  
+def login_no_eproc(browser, username, password, pyotop_code):  
     # Esperar campo de usuário
     WebDriverWait(browser, 20).until(
         EC.visibility_of_element_located((By.ID, 'txtUsuario'))
@@ -99,6 +99,33 @@ def login_no_eproc (browser, username, password, pyotop_code):
     # Clica no botão "Entrar" para validar o 2FA
     WebDriverWait(browser, 10).until(
         EC.element_to_be_clickable((By.ID, 'btnValidar'))
+    ).click()
+
+def login_no_eproc_tj(browser, username, password, pyotop_code):  
+    # Esperar campo de usuário
+    WebDriverWait(browser, 20).until(
+        EC.visibility_of_element_located((By.ID, 'username'))
+    )
+    # Preencher usuário
+    browser.find_element(By.ID, 'username').send_keys(username)
+    # Esperar campo de senha
+    WebDriverWait(browser, 10).until(
+        EC.visibility_of_element_located((By.ID, 'password'))
+    )
+    # Pegar senha do keyring e preencher    
+    browser.find_element(By.ID, 'password').send_keys(password)
+    # Esperar botão "Entrar" e clicar
+    WebDriverWait(browser, 10).until(
+        EC.element_to_be_clickable((By.ID, 'kc-login'))
+    ).click()
+    #passa o 2FA com o Pyotop
+    totp = pyotp.TOTP(pyotop_code)
+    WebDriverWait(browser, 30).until(
+        EC.visibility_of_element_located((By.ID, 'otp'))
+    ).send_keys(totp.now())
+    # Clica no botão "Entrar" para validar o 2FA
+    WebDriverWait(browser, 10).until(
+        EC.element_to_be_clickable((By.ID, 'kc-login'))
     ).click()
 
 def entrar_no_perfil(driver, perfil):
@@ -130,7 +157,7 @@ def entrar_no_processo(driver, eproc):
 def pega_texto_documento(navegador, documento):
 
     # 1. Localizar o elemento pelo ID
-    elemento = navegador.find_element(By.ID, "tdEvento14Doc1")
+    elemento = navegador.find_element(By.ID, documento)
 
     # 2. Criar ActionChains para executar o mouse over
     actions = ActionChains(navegador)
