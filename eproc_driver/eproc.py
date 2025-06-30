@@ -60,7 +60,7 @@ def novo_browser(download_directory):
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
         "safebrowsing.enabled": False,
-        "plugins.always_open_pdf_externally": True, #It will not show PDF directly in chrome        
+        #"plugins.always_open_pdf_externally": True, #It will not show PDF directly in chrome        
     })
     browser = webdriver.Chrome(options=options)
 
@@ -77,28 +77,28 @@ def novo_browser(download_directory):
 def login_no_eproc (browser, username, password, pyotop_code):  
     # Esperar campo de usuário
     WebDriverWait(browser, 20).until(
-        EC.visibility_of_element_located((By.ID, 'username'))
+        EC.visibility_of_element_located((By.ID, 'txtUsuario'))
     )
     # Preencher usuário
-    browser.find_element(By.ID, 'username').send_keys(username)
+    browser.find_element(By.ID, 'txtUsuario').send_keys(username)
     # Esperar campo de senha
     WebDriverWait(browser, 10).until(
-        EC.visibility_of_element_located((By.ID, 'password'))
+        EC.visibility_of_element_located((By.ID, 'pwdSenha'))
     )
     # Pegar senha do keyring e preencher    
-    browser.find_element(By.ID, 'password').send_keys(password)
+    browser.find_element(By.ID, 'pwdSenha').send_keys(password)
     # Esperar botão "Entrar" e clicar
     WebDriverWait(browser, 10).until(
-        EC.element_to_be_clickable((By.ID, 'kc-login'))
+        EC.element_to_be_clickable((By.ID, 'sbmEntrar'))
     ).click()
     #passa o 2FA com o Pyotop
     totp = pyotp.TOTP(pyotop_code)
     WebDriverWait(browser, 30).until(
-        EC.visibility_of_element_located((By.ID, 'otp'))
+        EC.visibility_of_element_located((By.ID, 'txtAcessoCodigo'))
     ).send_keys(totp.now())
     # Clica no botão "Entrar" para validar o 2FA
     WebDriverWait(browser, 10).until(
-        EC.element_to_be_clickable((By.ID, 'kc-login'))
+        EC.element_to_be_clickable((By.ID, 'btnValidar'))
     ).click()
 
 def entrar_no_perfil(driver, perfil):
@@ -127,3 +127,35 @@ def entrar_no_processo(driver, eproc):
     except TimeoutException:
         print("Falha ao carregar a página do processo.")
 
+def pega_texto_documento(navegador, documento):
+
+    # 1. Localizar o elemento pelo ID
+    elemento = navegador.find_element(By.ID, "tdEvento14Doc1")
+
+    # 2. Criar ActionChains para executar o mouse over
+    actions = ActionChains(navegador)
+
+    # Rolar a página para o elemento antes de mover o mouse
+    navegador.execute_script("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", elemento)
+
+    # Faz o mouseover em cima do texto link infraLinkDocumento do elemento
+    link_doc = elemento.find_element(By.CLASS_NAME, "infraLinkDocumento")
+    actions.move_to_element(link_doc).perform()
+
+    # 3. Aguardar para o hover ter efeito
+    time.sleep(4)
+
+    # Pega o texto
+    pyautogui.click(1000, 600)
+    time.sleep(0.5)  # Pequena pausa para garantir que o foco esteja correto
+    pyautogui.hotkey('ctrl', 'a')
+    time.sleep(0.2)  # Pequena pausa para segurança
+    pyautogui.hotkey('ctrl', 'c')
+    time.sleep(0.2)  # Dá tempo do sistema copiar para a área de transferência
+    conteudo = pyperclip.paste()
+    pyautogui.click(1000, 600)
+    pyautogui.hotkey('f5')
+    time.sleep(3)  # Pequena pausa para segurança
+
+    #devolve o conteudo
+    return conteudo
