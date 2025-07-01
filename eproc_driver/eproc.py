@@ -155,34 +155,147 @@ def entrar_no_processo(driver, eproc):
         print("Falha ao carregar a página do processo.")
 
 def pega_texto_documento(navegador, documento):
-
+    WebDriverWait(navegador, 20).until(
+        EC.presence_of_element_located((By.ID, documento))
+    )
     # 1. Localizar o elemento pelo ID
     elemento = navegador.find_element(By.ID, documento)
-
     # 2. Criar ActionChains para executar o mouse over
     actions = ActionChains(navegador)
-
     # Rolar a página para o elemento antes de mover o mouse
     navegador.execute_script("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", elemento)
-
     # Faz o mouseover em cima do texto link infraLinkDocumento do elemento
     link_doc = elemento.find_element(By.CLASS_NAME, "infraLinkDocumento")
     actions.move_to_element(link_doc).perform()
-
     # 3. Aguardar para o hover ter efeito
-    time.sleep(4)
+    time.sleep(5)
+    
+    # Verifica se há uma div com a classe 'divBoxPreview' visível na página
+    overlays = navegador.find_elements(By.ID, "divBoxPreview")
+    visiveis = [div for div in overlays if div.is_displayed()]
 
-    # Pega o texto
-    pyautogui.click(1000, 600)
-    time.sleep(0.5)  # Pequena pausa para garantir que o foco esteja correto
-    pyautogui.hotkey('ctrl', 'a')
-    time.sleep(0.2)  # Pequena pausa para segurança
-    pyautogui.hotkey('ctrl', 'c')
-    time.sleep(0.2)  # Dá tempo do sistema copiar para a área de transferência
-    conteudo = pyperclip.paste()
-    pyautogui.click(1000, 600)
-    pyautogui.hotkey('f5')
-    time.sleep(3)  # Pequena pausa para segurança
+    conteudo = ""
+    if visiveis:
+        div = overlays[0]
+        # Move o foco para a div
+        ActionChains(navegador).move_to_element(div).click().perform()
+        # Aguarda carregar o conteúdo (ajuste o tempo se necessário)
+        time.sleep(1)
+        # Seleciona todo o texto e copia (Ctrl+A, Ctrl+C)
+        ActionChains(navegador).key_down(Keys.CONTROL).send_keys('a').key_up(Keys.CONTROL).perform()
+        time.sleep(1)
+        ActionChains(navegador).key_down(Keys.CONTROL).send_keys('c').key_up(Keys.CONTROL).perform()
+        time.sleep(1)
+        conteudo = pyperclip.paste()
+        # Clica no botão de fechar o preview, se existir
+        btn_close = navegador.find_element(By.ID, "divClosePreview")
+        btn_close.click()    
+        time.sleep(3)
 
-    #devolve o conteudo
+    else:
+        print("Erro ao recuperar o documento")
     return conteudo
+
+def pega_eventos(navegador, perfil, processo):
+
+    movimentos = []
+    eventos = navegador.find_elements(By.CLASS_NAME, "infraEventoDescricao")
+
+    conn = sqlite3.connect("movimentos.db")
+    cursor = conn.cursor()
+
+    for evento in eventos:
+        tr_element = evento.find_element(By.XPATH, "./ancestor::tr")
+        # Número do evento
+        numero_evento = tr_element.find_element(By.XPATH, './td[2]').text.strip()
+        # Descrição do evento
+        descricao = evento.text.strip()
+        # Usuário responsável (normalmente na coluna 4)
+        usuario = tr_element.find_element(By.XPATH, './td[5]').text.strip().split('\n')[0]
+        # IDs dos documentos associados ao evento (busca por elementos com id começando com 'tdEvento{numero_evento}Doc')
+
+        # Evita duplicatas: só adiciona se não houver um igual já inserido
+        if not any(mov for mov in movimentos if mov["numero_evento"] == numero_evento and mov["descricao"] == descricao and mov["usuario"] == usuario):
+            movimentos.append({
+                "numero_evento": numero_evento,
+                "descricao": descricao,
+                "usuario": usuario
+            })
+
+            for mov in movimentos:
+                cursor.execute(
+                    "SELECT 1 FROM movimentos WHERE processo = ? AND evento = ? LIMIT 1",
+                    (str(processo), int(mov["numero_evento"]))
+                )
+                existe = cursor.fetchone() is not None
+                if not existe:
+                    cursor.execute(
+                        """
+                        INSERT INTO movimentos (processo, vara, evento, descricao)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (
+                            str(processo),
+                            perfil,
+                            int(mov["numero_evento"]),
+                            mov["descricao"]                        
+                        )
+                    )
+
+    conn.commit()
+    conn.close()
+
+def atualiza_textos_documentos(navegador, processo):
+    conn = sqlite3.connect("movimentos.db")
+    cursor = conn.cursor()   
+
+    documentos_eventos = []
+    links = navegador.find_elements(By.CLASS_NAME, "td-evento")
+
+    for link in links:
+        doc_id = link.get_dom_attribute("id")
+        tr_element = link.find_element(By.XPATH, "./ancestor::tr")
+        evento_id = tr_element.find_element(By.XPATH, './td[2]').text
+        
+        # Pega o atributo data-nome do elemento com classe infraLinkDocumento dentro do link
+        try:
+            infra_link = link.find_element(By.CLASS_NAME, "infraLinkDocumento")
+            data_nome = infra_link.get_attribute("data-nome")
+        except Exception:
+            data_nome = None
+
+        documentos_eventos.append((doc_id, data_nome, evento_id))
+
+    # Filtra apenas os documentos cujo evento ainda não possui texto na coluna "documentos"
+    documentos_eventos_filtrados = []
+    for doc_id, data_nome, evento_id in documentos_eventos:
+        cursor.execute(
+            "SELECT documentos FROM movimentos WHERE processo = ? AND evento = ?",
+            (str(processo), int(evento_id.strip()))
+        )
+        row = cursor.fetchone()
+        if row is None or not row[0]:
+            documentos_eventos_filtrados.append((doc_id, data_nome, evento_id))
+
+    documentos_eventos = documentos_eventos_filtrados
+
+    textos_documentos = []
+    for doc_id, data_nome, evento_id in documentos_eventos:
+        texto = eproc.pega_texto_documento(navegador, doc_id)
+        textos_documentos.append((doc_id, texto))
+
+    # Atualiza cada tupla em documentos_eventos para incluir o texto correspondente
+    documentos_eventos = [
+        (doc_id, data_nome, evento_id, texto)
+        for (doc_id, data_nome, evento_id), (id_movimento, texto) in zip(documentos_eventos, textos_documentos)
+    ]
+
+    for doc_id, data_nome, evento_num, texto in documentos_eventos:
+        documentos = f"======= {data_nome} =======\n{texto}\n"
+        cursor.execute("""
+            UPDATE movimentos
+            SET documentos = COALESCE(documentos, '') || ?
+            WHERE processo = ? AND evento = ?
+        """, (documentos, str(processo), int(evento_num)))
+        conn.commit()
+    conn.close()
