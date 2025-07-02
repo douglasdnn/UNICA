@@ -205,7 +205,12 @@ def pega_eventos(navegador, perfil, processo):
     for evento in eventos:
         tr_element = evento.find_element(By.XPATH, "./ancestor::tr")
         # Número do evento
-        numero_evento = tr_element.find_element(By.XPATH, './td[2]').text.strip()
+        numero_evento_text = tr_element.find_element(By.XPATH, './td[2]').text.strip()
+        # Extrai apenas os dígitos do texto para garantir que seja um número
+        numero_evento = ''.join(filter(str.isdigit, numero_evento_text))
+        if not numero_evento:
+            continue  # pula se não encontrar número
+        numero_evento = int(numero_evento)
         # Descrição do evento
         descricao = evento.text.strip()
         # Usuário responsável (normalmente na coluna 4)
