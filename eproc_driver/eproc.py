@@ -77,29 +77,30 @@ def novo_browser(download_directory):
 def login_no_eproc(browser, username, password, pyotop_code):  
     # Esperar campo de usuário
     WebDriverWait(browser, 20).until(
-        EC.visibility_of_element_located((By.ID, 'txtUsuario'))
+        EC.visibility_of_element_located((By.ID, 'username'))
     )
     # Preencher usuário
-    browser.find_element(By.ID, 'txtUsuario').send_keys(username)
+    browser.find_element(By.ID, 'username').send_keys(username)
     # Esperar campo de senha
     WebDriverWait(browser, 10).until(
-        EC.visibility_of_element_located((By.ID, 'pwdSenha'))
+        EC.visibility_of_element_located((By.ID, 'password'))
     )
     # Pegar senha do keyring e preencher    
-    browser.find_element(By.ID, 'pwdSenha').send_keys(password)
+    browser.find_element(By.ID, 'password').send_keys(password)
     # Esperar botão "Entrar" e clicar
     WebDriverWait(browser, 10).until(
-        EC.element_to_be_clickable((By.ID, 'sbmEntrar'))
+        EC.element_to_be_clickable((By.ID, 'kc-login'))
     ).click()
     #passa o 2FA com o Pyotop
     totp = pyotp.TOTP(pyotop_code)
     WebDriverWait(browser, 30).until(
-        EC.visibility_of_element_located((By.ID, 'txtAcessoCodigo'))
+        EC.visibility_of_element_located((By.ID, 'otp'))
     ).send_keys(totp.now())
     # Clica no botão "Entrar" para validar o 2FA
     WebDriverWait(browser, 10).until(
-        EC.element_to_be_clickable((By.ID, 'btnValidar'))
+        EC.element_to_be_clickable((By.ID, 'kc-login'))
     ).click()
+
 
 def login_no_eproc_tj(browser, username, password, pyotop_code):  
     # Esperar campo de usuário
@@ -201,9 +202,6 @@ def pega_eventos(navegador, perfil, processo):
     movimentos = []
     eventos = navegador.find_elements(By.CLASS_NAME, "infraEventoDescricao")
 
-    conn = sqlite3.connect("movimentos.db")
-    cursor = conn.cursor()
-
     for evento in eventos:
         tr_element = evento.find_element(By.XPATH, "./ancestor::tr")
         # Número do evento
@@ -223,12 +221,18 @@ def pega_eventos(navegador, perfil, processo):
             })
 
             for mov in movimentos:
+                conn = sqlite3.connect("movimentos.db", timeout=1)
+                cursor = conn.cursor()
                 cursor.execute(
                     "SELECT 1 FROM movimentos WHERE processo = ? AND evento = ? LIMIT 1",
                     (str(processo), int(mov["numero_evento"]))
-                )
+                )                
                 existe = cursor.fetchone() is not None
+                cursor.close()
+                conn.close()
                 if not existe:
+                    conn = sqlite3.connect("movimentos.db", timeout=1)
+                    cursor = conn.cursor()
                     cursor.execute(
                         """
                         INSERT INTO movimentos (processo, vara, evento, descricao)
@@ -240,10 +244,10 @@ def pega_eventos(navegador, perfil, processo):
                             int(mov["numero_evento"]),
                             mov["descricao"]                        
                         )
-                    )
-
-    conn.commit()
-    conn.close()
+                    )    
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
 
 def atualiza_textos_documentos(navegador, processo):
     conn = sqlite3.connect("movimentos.db")
