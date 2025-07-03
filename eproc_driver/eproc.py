@@ -101,7 +101,6 @@ def login_no_eproc(browser, username, password, pyotop_code):
         EC.element_to_be_clickable((By.ID, 'kc-login'))
     ).click()
 
-
 def login_no_eproc_tj(browser, username, password, pyotop_code):  
     # Esperar campo de usuário
     WebDriverWait(browser, 20).until(
@@ -141,8 +140,8 @@ def entrar_no_perfil(driver, perfil):
         print(f"Perfil '{perfil}' não encontrado.")
         return    
 
-def entrar_no_processo(driver, eproc):
-    driver.find_element(By.NAME, "txtNumProcessoPesquisaRapida").send_keys(eproc)
+def entrar_no_processo(driver, processo):
+    driver.find_element(By.NAME, "txtNumProcessoPesquisaRapida").send_keys(processo)
     time.sleep(1)
     driver.find_element(By.CSS_SELECTOR, ".d-none .btn-pesquisar > .material-icons").click()
     time.sleep(1)
@@ -151,9 +150,9 @@ def entrar_no_processo(driver, eproc):
         WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.TAG_NAME, "body"))
         )
-        print("Página do processo carregada com sucesso.")
+        print(f"Página do processo {processo} carregada com sucesso.")
     except TimeoutException:
-        print("Falha ao carregar a página do processo.")
+        print(f"Falha ao carregar a página do processo {processo}.")
 
 def pega_texto_documento(navegador, documento):
     WebDriverWait(navegador, 20).until(
@@ -166,7 +165,7 @@ def pega_texto_documento(navegador, documento):
     # Rolar a página para o elemento antes de mover o mouse
     navegador.execute_script("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", elemento)
     # Faz o mouseover em cima do texto link infraLinkDocumento do elemento
-    link_doc = elemento.find_element(By.CLASS_NAME, "infraLinkDocumento")
+    link_doc = elemento.find_element(By.XPATH, ".//*[contains(@class, 'infraLinkDoc')]")
     actions.move_to_element(link_doc).perform()
     # 3. Aguardar para o hover ter efeito
     time.sleep(5)
@@ -197,10 +196,26 @@ def pega_texto_documento(navegador, documento):
         print("Erro ao recuperar o documento")
     return conteudo
 
+def grava_texto_documento(processo, evento, documentos):
+    
+    conn = sqlite3.connect("movimentos.db")
+    cursor = conn.cursor() 
+    
+    cursor.execute("""
+        UPDATE movimentos
+        SET documentos = ? WHERE processo = ? AND evento = ?
+    """, (str(documentos), str(processo), int(evento)))
+
+    conn.commit()   
+    print(f"Documentos do evento {evento} do processo {processo} atualizados.")
+    cursor.close()
+    conn.close()
+
 def pega_eventos(navegador, perfil, processo):
 
     movimentos = []
     eventos = navegador.find_elements(By.CLASS_NAME, "infraEventoDescricao")
+    insercoes=0
 
     for evento in eventos:
         tr_element = evento.find_element(By.XPATH, "./ancestor::tr")
@@ -213,18 +228,18 @@ def pega_eventos(navegador, perfil, processo):
         numero_evento = int(numero_evento)
         # Descrição do evento
         descricao = evento.text.strip()
-        # Usuário responsável (normalmente na coluna 4)
-        usuario = tr_element.find_element(By.XPATH, './td[5]').text.strip().split('\n')[0]
+        # Parte
+        data_parte = tr_element.get_attribute("data-parte")
         # IDs dos documentos associados ao evento (busca por elementos com id começando com 'tdEvento{numero_evento}Doc')
 
         # Evita duplicatas: só adiciona se não houver um igual já inserido
-        if not any(mov for mov in movimentos if mov["numero_evento"] == numero_evento and mov["descricao"] == descricao and mov["usuario"] == usuario):
+        if not any(mov for mov in movimentos if mov["numero_evento"] == numero_evento and mov["descricao"] == descricao and mov["usuario"] == data_parte):
             movimentos.append({
                 "numero_evento": numero_evento,
                 "descricao": descricao,
-                "usuario": usuario
+                "usuario": data_parte
             })
-
+            
             for mov in movimentos:
                 conn = sqlite3.connect("movimentos.db", timeout=1)
                 cursor = conn.cursor()
@@ -240,47 +255,66 @@ def pega_eventos(navegador, perfil, processo):
                     cursor = conn.cursor()
                     cursor.execute(
                         """
-                        INSERT INTO movimentos (processo, vara, evento, descricao)
-                        VALUES (?, ?, ?, ?)
+                        INSERT INTO movimentos (processo, vara, evento, usuario, descricao)
+                        VALUES (?, ?, ?, ?, ?)
                         """,
                         (
                             str(processo),
                             perfil,
                             int(mov["numero_evento"]),
+                            str(data_parte),
                             mov["descricao"]                        
                         )
+
                     )    
                     conn.commit()
                     cursor.close()
                     conn.close()
+                    insercoes=insercoes+1
+    print(f"{insercoes} movimentos do processo {processo} inseridos no banco de dados.")
 
-def atualiza_textos_documentos(navegador, processo):
+def atualiza_textos_documentos(navegador, processo, tipos_indesejaveis):
     conn = sqlite3.connect("movimentos.db")
     cursor = conn.cursor()   
 
     documentos_eventos = []
-    links = navegador.find_elements(By.CLASS_NAME, "td-evento")
+    eventos = navegador.find_elements(By.CLASS_NAME, "td-evento")
 
-    for link in links:
-        doc_id = link.get_dom_attribute("id")
-        tr_element = link.find_element(By.XPATH, "./ancestor::tr")
+    for evento in eventos:
+        doc_id = evento.get_dom_attribute("id")
+        tr_element = evento.find_element(By.XPATH, "./ancestor::tr")
         evento_id = tr_element.find_element(By.XPATH, './td[2]').text
+        # Garante que evento_id seja apenas um int (remove qualquer caractere não numérico)
+        evento_id = ''.join(filter(str.isdigit, evento_id))
         
         # Pega o atributo data-nome do elemento com classe infraLinkDocumento dentro do link
         try:
-            infra_link = link.find_element(By.CLASS_NAME, "infraLinkDocumento")
+            infra_link = evento.find_element(By.XPATH, ".//*[contains(@class, 'infraLinkDoc')]")
             data_nome = infra_link.get_attribute("data-nome")
         except Exception:
             data_nome = None
 
         documentos_eventos.append((doc_id, data_nome, evento_id))
 
+    # Remove documentos cujo data-nome está na lista de indesejáveis
+    documentos_eventos = [
+        (doc_id, data_nome, evento_id)
+        for doc_id, data_nome, evento_id in documentos_eventos
+        if data_nome not in tipos_indesejaveis
+    ]
+
     # Filtra apenas os documentos cujo evento ainda não possui texto na coluna "documentos"
     documentos_eventos_filtrados = []
     for doc_id, data_nome, evento_id in documentos_eventos:
+        # Garante que evento_id seja um inteiro
+        try:
+            evento_id_int = int(''.join(filter(str.isdigit, evento_id)))
+        except Exception:
+            continue  # pula se não conseguir converter
+
         cursor.execute(
             "SELECT documentos FROM movimentos WHERE processo = ? AND evento = ?",
-            (str(processo), int(evento_id.strip()))
+            (str(processo), evento_id_int)
         )
         row = cursor.fetchone()
         if row is None or not row[0]:
@@ -290,21 +324,10 @@ def atualiza_textos_documentos(navegador, processo):
 
     textos_documentos = []
     for doc_id, data_nome, evento_id in documentos_eventos:
-        texto = eproc.pega_texto_documento(navegador, doc_id)
+        texto = pega_texto_documento(navegador, doc_id)
+        texto = f"**********{data_nome}**********\n{texto}"        
         textos_documentos.append((doc_id, texto))
+        grava_texto_documento(processo, evento_id, texto)
 
-    # Atualiza cada tupla em documentos_eventos para incluir o texto correspondente
-    documentos_eventos = [
-        (doc_id, data_nome, evento_id, texto)
-        for (doc_id, data_nome, evento_id), (id_movimento, texto) in zip(documentos_eventos, textos_documentos)
-    ]
-
-    for doc_id, data_nome, evento_num, texto in documentos_eventos:
-        documentos = f"======= {data_nome} =======\n{texto}\n"
-        cursor.execute("""
-            UPDATE movimentos
-            SET documentos = COALESCE(documentos, '') || ?
-            WHERE processo = ? AND evento = ?
-        """, (documentos, str(processo), int(evento_num)))
-        conn.commit()
+    
     conn.close()
