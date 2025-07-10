@@ -75,30 +75,93 @@ def novo_browser(download_directory):
     return browser
 
 def login_no_eproc(browser, username, password, pyotop_code):  
+    
+    #define os campos
+    cp1 = ["txtUsuario", "pwdSenha", "sbmEntrar", "txtAcessoCodigo", "btnValidar"]
+    cp2 = ["username", "password", "kc-login", "otp", "kc-login"]
+       
+    # Esperar campo de usuário
+    # Espera por cp1[0] ou cp2[0]
+    try:
+        WebDriverWait(browser, 5).until(
+            EC.visibility_of_element_located((By.ID, cp1[0]))
+        )
+        cp = 1
+    except TimeoutException:
+        WebDriverWait(browser, 5).until(
+            EC.visibility_of_element_located((By.ID, cp2[0]))
+        )
+        cp = 2
+
+    if cp == 1:
+        # Fluxo padrão (campos cp1)
+        # Preencher usuário
+        browser.find_element(By.ID, 'txtUsuario').send_keys(username)
+        # Esperar campo de senha
+        WebDriverWait(browser, 10).until(
+            EC.visibility_of_element_located((By.ID, 'pwdSenha'))
+        )
+        # Pegar senha do keyring e preencher    
+        browser.find_element(By.ID, 'pwdSenha').send_keys(password)
+        # Esperar botão "Entrar" e clicar
+        WebDriverWait(browser, 10).until(
+            EC.element_to_be_clickable((By.ID, 'sbmEntrar'))
+        ).click()
+        #passa o 2FA com o Pyotop
+        totp = pyotp.TOTP(pyotop_code)
+        WebDriverWait(browser, 30).until(
+            EC.visibility_of_element_located((By.ID, 'txtAcessoCodigo'))
+        ).send_keys(totp.now())
+        # Clica no botão "Entrar" para validar o 2FA
+        WebDriverWait(browser, 10).until(
+            EC.element_to_be_clickable((By.ID, 'btnValidar'))
+        ).click()
+        pass
+    else:
+        # Fluxo alternativo (campos cp2)
+        browser.find_element(By.ID, 'username').send_keys(username)
+        WebDriverWait(browser, 10).until(
+            EC.visibility_of_element_located((By.ID, 'password'))
+        )
+        browser.find_element(By.ID, 'password').send_keys(password)
+        WebDriverWait(browser, 10).until(
+            EC.element_to_be_clickable((By.ID, 'kc-login'))
+        ).click()
+        totp = pyotp.TOTP(pyotop_code)
+        WebDriverWait(browser, 30).until(
+            EC.visibility_of_element_located((By.ID, 'otp'))
+        ).send_keys(totp.now())
+        WebDriverWait(browser, 10).until(
+            EC.element_to_be_clickable((By.ID, 'kc-login'))
+        ).click()
+        return
+    
+
+def login_no_eproc_casa(browser, username, password, pyotop_code):  
     # Esperar campo de usuário
     WebDriverWait(browser, 20).until(
-        EC.visibility_of_element_located((By.ID, 'username'))
+        EC.visibility_of_element_located((By.ID, 'txtUsuario'))
     )
     # Preencher usuário
-    browser.find_element(By.ID, 'username').send_keys(username)
+    browser.find_element(By.ID, 'txtUsuario').send_keys(username)
     # Esperar campo de senha
     WebDriverWait(browser, 10).until(
-        EC.visibility_of_element_located((By.ID, 'password'))
+        EC.visibility_of_element_located((By.ID, 'pwdSenha'))
     )
     # Pegar senha do keyring e preencher    
-    browser.find_element(By.ID, 'password').send_keys(password)
+    browser.find_element(By.ID, 'pwdSenha').send_keys(password)
     # Esperar botão "Entrar" e clicar
     WebDriverWait(browser, 10).until(
-        EC.element_to_be_clickable((By.ID, 'kc-login'))
+        EC.element_to_be_clickable((By.ID, 'sbmEntrar'))
     ).click()
     #passa o 2FA com o Pyotop
     totp = pyotp.TOTP(pyotop_code)
     WebDriverWait(browser, 30).until(
-        EC.visibility_of_element_located((By.ID, 'otp'))
+        EC.visibility_of_element_located((By.ID, 'txtAcessoCodigo'))
     ).send_keys(totp.now())
     # Clica no botão "Entrar" para validar o 2FA
     WebDriverWait(browser, 10).until(
-        EC.element_to_be_clickable((By.ID, 'kc-login'))
+        EC.element_to_be_clickable((By.ID, 'btnValidar'))
     ).click()
 
 def login_no_eproc_tj(browser, username, password, pyotop_code):  
@@ -153,6 +216,28 @@ def entrar_no_processo(driver, processo):
         print(f"Página do processo {processo} carregada com sucesso.")
     except TimeoutException:
         print(f"Falha ao carregar a página do processo {processo}.")
+
+def entrar_nas_minutas(driver):
+    try:
+        target = driver.find_element(By.CSS_SELECTOR, '[data-target="#menu-ul-106"]')
+        target.click()
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+        # Procura o elemento <a> com title "Modelos Padrão" e clica nele
+        target = driver.find_element(By.CSS_SELECTOR, 'a[title="Modelos padrão"]')
+        target.click()
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+        target.click()
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+        print(f"Página de modelos de minutas carregada.")
+    except NoSuchElementException:
+        print(f"Link não encontrado.")
+        return 
 
 def pega_texto_documento(navegador, documento):
     WebDriverWait(navegador, 20).until(
