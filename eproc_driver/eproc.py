@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from selenium import webdriver
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.chrome.service import Service
@@ -24,6 +25,7 @@ import sqlite3
 from pathlib import Path
 import io
 import pandas as pd
+from contextlib import closing
 
 #bibliotecas de configuração
 import pyotp
@@ -136,7 +138,6 @@ def login_no_eproc(browser, username, password, pyotop_code):
         ).click()
         return
     
-
 def login_no_eproc_casa(browser, username, password, pyotop_code):  
     # Esperar campo de usuário
     WebDriverWait(browser, 20).until(
@@ -226,10 +227,6 @@ def entrar_nas_minutas(driver):
         )
         # Procura o elemento <a> com title "Modelos Padrão" e clica nele
         target = driver.find_element(By.CSS_SELECTOR, 'a[title="Modelos padrão"]')
-        target.click()
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
         target.click()
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.TAG_NAME, "body"))
@@ -416,3 +413,116 @@ def atualiza_textos_documentos(navegador, processo, tipos_indesejaveis):
 
     
     conn.close()
+
+def insere_lembrete(navegador, texto):
+    # Localiza o campo de lembrete e insere o texto
+    
+    navegador.switch_to.default_content()
+    novo_btn = navegador.find_element(By.LINK_TEXT, "Novo")
+    navegador.execute_script("arguments[0].scrollIntoView(true);", novo_btn)
+    time.sleep(0.5)
+    novo_btn.click()
+    navegador.switch_to.frame(1)
+    navegador.find_element(By.ID, "txaDescricao").click()
+    navegador.find_element(By.ID, "txaDescricao").send_keys(texto)
+    navegador.find_element(By.CSS_SELECTOR, "td:nth-child(2) > .infraRadio").click()
+    navegador.find_element(By.CSS_SELECTOR, "#divInfraBarraComandosInferior > #sbmSalvar").click()
+    navegador.switch_to.default_content()
+    time.sleep(2)
+
+def apaga_ultimo_lembrete(navegador):
+    # Localiza o campo de lembrete e insere o texto
+    
+    navegador.find_element(By.CSS_SELECTOR, ".divLembretePara > a:nth-child(2) > .material-icons").click()
+    assert navegador.switch_to.alert.text == "Deseja excluir o lembrete?"
+    navegador.switch_to.alert.accept()
+    time.sleep(2)
+
+def ollama_resumo(pedido):
+    print("========== Iniciando resumo com LLM ==========")
+    pergunta_gemma = "Considere o seguinte pedido." \
+    f"{pedido}" \
+    "Resuma, da maneira mais objetiva possível, o pedido. Não mencione dados pessoais, como nomes, números de documento, números de processo, valores, etc. " \
+    "O resumo deve ser genérico e breve (uma frase apenas, com o mínimo de palavras possível). " \
+    "Se tiver mais de um pedido, retorne uma frase para cada um." \
+
+    resumo = ollama.chat(
+        model="cnmoro/gemma3-gaia-ptbr-4b:q8_0",
+        messages=[{'role': 'user', 'content': f'{pergunta_gemma}'}],    
+    )
+
+    return(resumo['message']['content'])
+
+def trataMinuta(texto, tipo_ato):
+    # Regex para capturar o texto a partir do tipo_ato até @NUMEROPROCESSOFORMATADO@
+    # O re.escape é usado para escapar caracteres especiais no tipo_ato
+    padrao = re.compile(
+        rf"{re.escape(tipo_ato)}.*?(@NUMEROPROCESSOFORMATADO@)", 
+        re.IGNORECASE | re.DOTALL | re.UNICODE
+    )    
+    match = padrao.search(texto)    
+    if not match:
+        return None  # Retorna None se não encontrou o padrão    
+    texto_limpo = match.group(0)    
+    # Remove tudo depois de @NUMEROPROCESSOFORMATADO@ (inclusive o que vier depois dele)
+    texto_limpo = re.sub(r"(@NUMEROPROCESSOFORMATADO@).*", r"\1", texto_limpo, flags=re.DOTALL)    
+    # Remove quebras de linha em excesso (mais de 2 quebras viram 2)
+    texto_limpo = re.sub(r'\n\s*\n+', '\n\n', texto_limpo)    
+    # Remove espaços em excesso nas linhas
+    texto_limpo = '\n'.join(linha.strip() for linha in texto_limpo.splitlines())    
+    return texto_limpo
+
+def pegaMinuta(driver, cod_minuta):
+    pyautogui.click(1000, 600)
+    time.sleep(0.2)  # Pequena pausa para segurança
+    driver.find_element(By.ID, "txtCodigoModelo").clear()
+    time.sleep(0.2)  # Pequena pausa para segurança
+    #insere o código 
+    driver.find_element(By.ID, "txtCodigoModelo").click()
+    time.sleep(0.2)  # Pequena pausa para segurança
+    driver.find_element(By.ID, "txtCodigoModelo").send_keys(cod_minuta)
+    time.sleep(2)
+    pyautogui.hotkey('enter')
+    time.sleep(4)
+    # Localiza o elemento com código
+    elemento = driver.find_element(By.PARTIAL_LINK_TEXT, str(cod_minuta))
+    # Cria uma cadeia de ações e move o mouse até o elemento
+    actions = ActionChains(driver)
+    actions.move_to_element(elemento).perform()
+    time.sleep(4)
+    # Pega o texto
+    pyautogui.click(1000, 600)
+    time.sleep(0.5)  # Pequena pausa para garantir que o foco esteja correto
+    pyautogui.hotkey('ctrl', 'a')
+    time.sleep(0.2)  # Pequena pausa para segurança
+    pyautogui.hotkey('ctrl', 'c')
+    time.sleep(0.2)  # Dá tempo do sistema copiar para a área de transferência
+    conteudo = pyperclip.paste()
+    pyautogui.click(1000, 600)
+    pyautogui.hotkey('f5')
+    time.sleep(3)  # Pequena pausa para segurança
+    #devolve o conteudo
+    return conteudo
+
+def gravaTextoMinuta(cod_minuta, texto_minuta):
+    with closing(sqlite3.connect('minutas.db')) as conn:
+        cursor = conn.cursor()
+        query_insert = 'UPDATE minutas SET conteudo = ? WHERE Código = ?;'
+        cursor.execute(query_insert, (texto_minuta, cod_minuta))
+        conn.commit()
+
+def pegaProximaMinutaVazia():
+    with closing(sqlite3.connect('minutas.db')) as conn:
+        cursor = conn.cursor()
+        query_select = 'SELECT "Código", "Tipo de Documento" FROM minutas WHERE conteudo IS NULL LIMIT 1'
+        cursor.execute(query_select)
+        resultados = cursor.fetchall()
+        return resultados
+
+
+
+
+
+
+
+
