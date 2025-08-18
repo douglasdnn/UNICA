@@ -1,2 +1,0 @@
-# UNICA
-Códigos da UNICA
