@@ -58,15 +58,16 @@ def novo_browser(download_directory):
     options.add_argument("start-maximized")
     options.add_argument("--remote-debugging-port=9222")
     options.add_argument("--safebrowsing-disable-download-protection")
-
     options.add_experimental_option('prefs', {
         "download.default_directory": download_directory,
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
         "safebrowsing.enabled": False,
-        "plugins.always_open_pdf_externally": True, #It will not show PDF directly in chrome        
+        "plugins.always_open_pdf_externally": True  # PDF será baixado automaticamente, não aberto no Chrome
     })
     browser = webdriver.Chrome(options=options)
+    params = {'behavior' : 'allow', 'downloadPath': download_directory}
+    browser.execute_cdp_cmd('Page.setDownloadBehavior', params)
 
     browser.get('https://eproc1g.tjrs.jus.br/eproc/')
     browser.maximize_window()
