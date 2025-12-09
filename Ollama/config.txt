@@ -1,0 +1,3 @@
+[DEFAULT]
+#perfil = "STM1CIV"
+perfil = "SRD1CIV"
