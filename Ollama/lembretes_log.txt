@@ -1,0 +1,164 @@
+
+============================================================
+Execução: 07/04/2026 23:48:30
+Validade dos lembretes: 20 dias
+============================================================
+
+Comarca: CAN1CIV
+----------------
+  "UNICA RESUMOS - baixa" - 2 processos
+  "UNICA RESUMOS - desistência" - 1 processos
+  "UNICA RESUMOS - infojud" - 4 processos
+  "UNICA RESUMOS - não" - 1 processos
+  "UNICA RESUMOS - renajud" - 1 processos
+
+Total de lembretes inseridos nesta execução: 12
+
+============================================================
+Execução: 08/04/2026 00:20:51
+Validade dos lembretes: 20 dias
+============================================================
+
+Comarca: POA01CVRN
+------------------
+  "UNICA RESUMOS - @URCA - ED ANALISAR" - 4 processos
+  "UNICA RESUMOS - @URCA - Infojud" - 1 processos
+  "UNICA RESUMOS - @URCA - Renajud" - 2 processos
+  "UNICA RESUMOS - @URCA - Sisbajud" - 1 processos
+  "UNICA RESUMOS - @URCA - analisar ED" - 1 processos
+  "UNICA RESUMOS - @URCA - analisar Impugnação ao cumprimento" - 5 processos
+  "UNICA RESUMOS - @URCA - analisar alvará" - 3 processos
+  "UNICA RESUMOS - @URCA - analisar citação edital" - 9 processos
+  "UNICA RESUMOS - @URCA - analisar gratuidade" - 1 processos
+  "UNICA RESUMOS - @URCA - analisar impugnação a penhora" - 4 processos
+  "UNICA RESUMOS - @URCA - analisar nulidade ou vício" - 3 processos
+  "UNICA RESUMOS - @URCA - analisar representação processual" - 5 processos
+  "UNICA RESUMOS - @URCA - analisar revelia" - 8 processos
+  "UNICA RESUMOS - @URCA - analisar suspensão" - 8 processos
+  "UNICA RESUMOS - @URCA - extinção" - 7 processos
+  "UNICA RESUMOS - @URCA - inicial" - 32 processos
+  "UNICA RESUMOS - @URCA - penhora de imóvel" - 1 processos
+  "UNICA RESUMOS - @URCA - prosseguimento ou abandono" - 3 processos
+  "UNICA RESUMOS - @URCA - saneador" - 1 processos
+  "UNICA RESUMOS - @URCA - suspensão 921 ou prescrição" - 2 processos
+
+Total de lembretes inseridos nesta execução: 143
+
+============================================================
+Execução: 08/04/2026 00:29:07
+Validade dos lembretes: 20 dias
+============================================================
+
+Comarca: POA01CVRN
+------------------
+  "UNICA RESUMOS - @URCA - ED ANALISAR" - 4 processos
+  "UNICA RESUMOS - @URCA - Infojud" - 1 processos
+  "UNICA RESUMOS - @URCA - Renajud" - 2 processos
+  "UNICA RESUMOS - @URCA - Sisbajud" - 1 processos
+  "UNICA RESUMOS - @URCA - analisar ED" - 1 processos
+  "UNICA RESUMOS - @URCA - analisar Impugnação ao cumprimento" - 5 processos
+  "UNICA RESUMOS - @URCA - analisar alvará" - 3 processos
+  "UNICA RESUMOS - @URCA - analisar citação edital" - 9 processos
+  "UNICA RESUMOS - @URCA - analisar gratuidade" - 1 processos
+  "UNICA RESUMOS - @URCA - analisar impugnação a penhora" - 4 processos
+  "UNICA RESUMOS - @URCA - analisar nulidade ou vício" - 3 processos
+  "UNICA RESUMOS - @URCA - analisar representação processual" - 5 processos
+  "UNICA RESUMOS - @URCA - analisar revelia" - 8 processos
+  "UNICA RESUMOS - @URCA - analisar suspensão" - 8 processos
+  "UNICA RESUMOS - @URCA - extinção" - 7 processos
+  "UNICA RESUMOS - @URCA - inicial" - 32 processos
+  "UNICA RESUMOS - @URCA - penhora de imóvel" - 1 processos
+  "UNICA RESUMOS - @URCA - prosseguimento ou abandono" - 3 processos
+  "UNICA RESUMOS - @URCA - saneador" - 1 processos
+  "UNICA RESUMOS - @URCA - suspensão 921 ou prescrição" - 2 processos
+
+Comarca: TMI1CIV
+----------------
+  "UNICA RESUMOS - @URCA - 924 CPC" - 1 processos
+  "UNICA RESUMOS - @URCA - CNIB" - 1 processos
+  "UNICA RESUMOS - @URCA - ED ANALISAR" - 3 processos
+  "UNICA RESUMOS - @URCA - INFOJUD" - 2 processos
+  "UNICA RESUMOS - @URCA - SEM PETIÇÃO" - 19 processos
+  "UNICA RESUMOS - @URCA - WHATSAPP" - 5 processos
+
+Total de lembretes inseridos nesta execução: 31
+
+============================================================
+Execução: 08/04/2026 00:31:07
+Validade dos lembretes: 20 dias
+============================================================
+
+Comarca: POA01CVRN
+------------------
+  "UNICA RESUMOS - @URCA - ED ANALISAR" - 4 processos
+  "UNICA RESUMOS - @URCA - Infojud" - 1 processos
+  "UNICA RESUMOS - @URCA - Renajud" - 2 processos
+  "UNICA RESUMOS - @URCA - Sisbajud" - 1 processos
+  "UNICA RESUMOS - @URCA - analisar ED" - 1 processos
+  "UNICA RESUMOS - @URCA - analisar Impugnação ao cumprimento" - 5 processos
+  "UNICA RESUMOS - @URCA - analisar alvará" - 3 processos
+  "UNICA RESUMOS - @URCA - analisar citação edital" - 9 processos
+  "UNICA RESUMOS - @URCA - analisar gratuidade" - 1 processos
+  "UNICA RESUMOS - @URCA - analisar impugnação a penhora" - 4 processos
+  "UNICA RESUMOS - @URCA - analisar nulidade ou vício" - 3 processos
+  "UNICA RESUMOS - @URCA - analisar representação processual" - 5 processos
+  "UNICA RESUMOS - @URCA - analisar revelia" - 8 processos
+  "UNICA RESUMOS - @URCA - analisar suspensão" - 8 processos
+  "UNICA RESUMOS - @URCA - extinção" - 7 processos
+  "UNICA RESUMOS - @URCA - inicial" - 32 processos
+  "UNICA RESUMOS - @URCA - penhora de imóvel" - 1 processos
+  "UNICA RESUMOS - @URCA - prosseguimento ou abandono" - 3 processos
+  "UNICA RESUMOS - @URCA - saneador" - 1 processos
+  "UNICA RESUMOS - @URCA - suspensão 921 ou prescrição" - 2 processos
+
+Comarca: TMI1CIV
+----------------
+  "UNICA RESUMOS - @URCA - 924 CPC" - 1 processos
+  "UNICA RESUMOS - @URCA - CNIB" - 1 processos
+  "UNICA RESUMOS - @URCA - ED ANALISAR" - 3 processos
+  "UNICA RESUMOS - @URCA - INFOJUD" - 2 processos
+  "UNICA RESUMOS - @URCA - SEM PETIÇÃO" - 19 processos
+  "UNICA RESUMOS - @URCA - WHATSAPP" - 5 processos
+
+Total de lembretes inseridos nesta execução: 3
+
+============================================================
+Execução: 08/04/2026 00:37:44
+Validade dos lembretes: 20 dias
+============================================================
+
+Comarca: POA01CVRN
+------------------
+  "UNICA RESUMOS - @URCA - ED ANALISAR" - 4 processos
+  "UNICA RESUMOS - @URCA - Infojud" - 1 processos
+  "UNICA RESUMOS - @URCA - Renajud" - 2 processos
+  "UNICA RESUMOS - @URCA - Sisbajud" - 1 processos
+  "UNICA RESUMOS - @URCA - analisar ED" - 1 processos
+  "UNICA RESUMOS - @URCA - analisar Impugnação ao cumprimento" - 5 processos
+  "UNICA RESUMOS - @URCA - analisar alvará" - 3 processos
+  "UNICA RESUMOS - @URCA - analisar citação edital" - 9 processos
+  "UNICA RESUMOS - @URCA - analisar gratuidade" - 1 processos
+  "UNICA RESUMOS - @URCA - analisar impugnação a penhora" - 4 processos
+  "UNICA RESUMOS - @URCA - analisar nulidade ou vício" - 3 processos
+  "UNICA RESUMOS - @URCA - analisar representação processual" - 5 processos
+  "UNICA RESUMOS - @URCA - analisar revelia" - 8 processos
+  "UNICA RESUMOS - @URCA - analisar suspensão" - 8 processos
+  "UNICA RESUMOS - @URCA - extinção" - 7 processos
+  "UNICA RESUMOS - @URCA - inicial" - 32 processos
+  "UNICA RESUMOS - @URCA - penhora de imóvel" - 1 processos
+  "UNICA RESUMOS - @URCA - prosseguimento ou abandono" - 3 processos
+  "UNICA RESUMOS - @URCA - saneador" - 1 processos
+  "UNICA RESUMOS - @URCA - suspensão 921 ou prescrição" - 2 processos
+
+Comarca: TMI1CIV
+----------------
+  "UNICA RESUMOS - @URCA - 924 CPC" - 1 processos
+  "UNICA RESUMOS - @URCA - CNIB" - 1 processos
+  "UNICA RESUMOS - @URCA - ED ANALISAR" - 3 processos
+  "UNICA RESUMOS - @URCA - INFOJUD" - 2 processos
+  "UNICA RESUMOS - @URCA - SEM PETIÇÃO" - 23 processos
+  "UNICA RESUMOS - @URCA - SERASAJUD + DIVERSOS" - 1 processos
+  "UNICA RESUMOS - @URCA - WHATSAPP" - 5 processos
+  "UNICA RESUMOS - @URCA - desistencia" - 1 processos
+
+Total de lembretes inseridos nesta execução: 6

@@ -1,3 +1,4 @@
 [DEFAULT]
-#perfil = "STM1CIV"
-perfil = "SRD1CIV"
+perfil = "STM1CIV"
+#perfil = "CAN1CIV"
+#perfil = "SRD1CIV"

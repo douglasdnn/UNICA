@@ -1,0 +1,18 @@
+services:
+
+  app:
+    build: .
+    container_name: UNICA_scheduler
+    entrypoint: ["/bin/bash", "/app/entrypoint.sh"]
+    env_file:
+      - .env  
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/app
+      - ./DB:/app/DB
+    restart: always
+    # Evita que o volume local sobrescreva o venv criado no build
+    # Se você precisar editar o código e refletir instantaneamente, 
+    # certifique-se de não ter uma pasta 'ollama-venv' na sua máquina host.
+    # certifique-se de não ter uma pasta 'ollama-venv' na sua máquina host.

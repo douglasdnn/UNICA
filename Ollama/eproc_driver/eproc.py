@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-#from selenium import webdriver
-from seleniumwire import webdriver
+from selenium import webdriver
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
@@ -15,6 +14,7 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
 
 #Bibliotecas de Sistema
+import platform
 import time
 import re
 import csv
@@ -28,6 +28,7 @@ from pathlib import Path
 import io
 import pandas as pd
 from contextlib import closing
+import tempfile
 
 #bibliotecas de configuração
 import pyotp
@@ -36,14 +37,28 @@ import keyring
 
 #bibliotecas de automação
 import pyperclip
-import pyautogui
+try:
+    import pyautogui
+except BaseException:
+    pyautogui = None
 
 #Bibliotecas de IA
 from gemini import gemini as gemini
 import ollama
 
 #Funções
-def novo_browser(download_directory):  
+def novo_browser(download_directory, headless=False):  
+    # Em ambientes com HTTP(S)_PROXY global, o Chrome pode falhar com
+    # ERR_PROXY_CONNECTION_FAILED. Por padrao, desativamos proxy para o eproc.
+    disable_proxy = os.getenv("EPROC_DISABLE_PROXY", "1") != "0"
+
+    if disable_proxy:
+        for proxy_var in [
+            "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
+            "http_proxy", "https_proxy", "no_proxy",
+        ]:
+            os.environ.pop(proxy_var, None)
+
     PROCNAME = "chromedriver" # or chromedriver or IEDriverServer
     for proc in psutil.process_iter():
         # check whether the process name matches
@@ -51,13 +66,25 @@ def novo_browser(download_directory):
             proc.kill()
     options = webdriver.ChromeOptions()
 
-    #options.add_argument("--headless=new")
+    if headless:
+        options.add_argument("--headless=new")
+        options.add_argument("--window-size=1920,1080")
 
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-gpu")
-    options.add_argument("start-maximized")
-    options.add_argument("--remote-debugging-port=9222")
+    options.add_argument("--disable-extensions")
+    temp_profile_dir = tempfile.mkdtemp(prefix="eproc-chrome-")
+    options.add_argument(f"--user-data-dir={temp_profile_dir}")
+    if not headless:
+        options.add_argument("start-maximized")
+    options.add_argument("--remote-debugging-port=0")
     options.add_argument("--safebrowsing-disable-download-protection")
+    if disable_proxy:
+        options.add_argument("--no-proxy-server")
+        options.add_argument("--proxy-server=direct://")
+        options.add_argument("--proxy-auto-detect=false")
+        options.add_argument("--proxy-bypass-list=*")
+        options.set_capability("proxy", {"proxyType": "direct"})
     #options.add_argument("--incognito")
     options.add_experimental_option('prefs', {
         "download.default_directory": download_directory,
@@ -66,18 +93,26 @@ def novo_browser(download_directory):
         "safebrowsing.enabled": False,
         "plugins.always_open_pdf_externally": True  # PDF será baixado automaticamente, não aberto no Chrome
     })
-    chromedriver_path = r"D:\Douglas\Drivers\chromedriver.exe" 
-    service = Service(chromedriver_path)
-
-    chromePath = r"D:\Douglas\chrome-win64\chrome.exe"
-    options.binary_location = chromePath
+    if platform.system() == "Windows":
+        chromedriver_path = r"D:\Douglas\Drivers\chromedriver.exe" 
+        service = Service(chromedriver_path)
+        chromePath = r"D:\Douglas\chrome-win64\chrome.exe"
+        options.binary_location = chromePath
+    else:
+        import shutil
+        system_chromedriver = shutil.which("chromedriver")
+        if system_chromedriver:
+            service = Service(system_chromedriver)
+        else:
+            service = Service(ChromeDriverManager().install())
 
     browser = webdriver.Chrome(service=service, options=options)
     params = {'behavior' : 'allow', 'downloadPath': download_directory}
     browser.execute_cdp_cmd('Page.setDownloadBehavior', params)
 
     browser.get('https://eproc1g.tjrs.jus.br/eproc/')
-    browser.maximize_window()
+    if not headless:
+        browser.maximize_window()
 
     #Cria o diretório de download, se ele não existir
     if not os.path.exists(download_directory):

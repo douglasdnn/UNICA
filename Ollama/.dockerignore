@@ -1,0 +1,6 @@
+ollama_data/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
