@@ -1,5 +1,9 @@
 # Ignorar arquivos e pastas específicos
 .vscode
+.vscode/
+.idea/
+.git*
+
 
 # Caches e dados do Ollama
 __pycache__/
