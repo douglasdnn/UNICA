@@ -1,10 +1,14 @@
 # Ignorar arquivos e pastas específicos
 .vscode
 
-
 # Caches e dados do Ollama
-Ollama/ollama_data/
-Ollama/cache/
+__pycache__/
+UNICA-Resumos/ollama_data/
+UNICA-Resumos/cache/
+UNICA-Resumos/__pycache__/
+UNICA-scheduler/ollama_data/
+UNICA-scheduler/cache/
+UNICA-scheduler/__pycache__/
 *.json
 
 # Python e ambientes virtuais
@@ -19,3 +23,10 @@ doug-eproc/
 
 # Arquivos de configuração local
 .env
+UNICA-Resumos/.env
+UNICA-scheduler/.env
+
+#credenciais e chaves
+*.json
+UNICA-Resumos/*.json
+UNICA-scheduler/*.json
