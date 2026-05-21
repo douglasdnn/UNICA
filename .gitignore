@@ -1,2 +1,21 @@
+# Ignorar arquivos e pastas específicos
+.vscode
+
+
+# Caches e dados do Ollama
+Ollama/ollama_data/
+Ollama/cache/
+*.json
+
+# Python e ambientes virtuais
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
 eproc/
 doug-eproc/
+
+# Arquivos de configuração local
+.env
