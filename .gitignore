@@ -2,8 +2,6 @@
 .vscode
 .vscode/
 .idea/
-.git*
-
 
 # Caches e dados do Ollama
 __pycache__/
@@ -25,12 +23,7 @@ env/
 eproc/
 doug-eproc/
 
-# Arquivos de configuração local
-.env
-UNICA-Resumos/.env
-UNICA-scheduler/.env
-
-#credenciais e chaves
-*.json
-UNICA-Resumos/*.json
-UNICA-scheduler/*.json
+# Regras globais para quaisquer pastas
+**/*.json
+**/.env
+**/*.env
