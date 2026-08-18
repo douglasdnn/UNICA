@@ -10,58 +10,30 @@ args = parser.parse_args()
 
 # === Importações ===
 
-from selenium import webdriver
-from selenium.webdriver.support.select import Select
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.alert import Alert
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException
-from selenium.common.exceptions import TimeoutException, WebDriverException
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import ElementClickInterceptedException
+from selenium.common.exceptions import TimeoutException
 
 from datetime import datetime
-from datetime import timedelta
-from datetime import date
-from datetime import timezone
 import platform
 import time
 import re
-import csv
 import os
 import glob
-import requests
-import psutil
-from bs4 import BeautifulSoup
 from eproc_driver import eproc as eproc
 import sqlite3
-from pathlib import Path
-import io
-import pandas as pd
-from contextlib import closing
 import PyPDF2
 import traceback
+import sys
 
-import pyotp
-import configparser
-import keyring
 from dotenv import load_dotenv
-
-import pyperclip
-try:
-    import pyautogui
-except BaseException:
-    pyautogui = None
 
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-
-import ollama
 
 # === Setup ===
 
@@ -313,34 +285,6 @@ def pega_texto_documento(navegador, documento):
         print("Erro ao recuperar o documento")
     return conteudo
 
-def ollama_resumo(pedido):
-    pergunta_gemma = "Considere o seguinte pedido." \
-    f"{pedido}" \
-    "Resuma, da maneira mais objetiva possível, o pedido. Não mencione dados pessoais, como nomes, números de documento, números de processo, valores, etc. " \
-    "O resumo deve ser genérico e breve (uma frase apenas, com o mínimo de palavras possível). " \
-    "Se tiver mais de um pedido, retorne uma frase para cada um." \
-
-    resumo = ollama.chat(
-        model="cnmoro/gemma3-gaia-ptbr-4b:q8_0",
-        messages=[{'role': 'user', 'content': f'{pergunta_gemma}'}],
-    )
-
-    return(resumo['message']['content'])
-
-def verifica_tipos_de_pedidos(pedido, lista_de_pedidos):
-    print("========== Verificando se é um caso de uso conhecido... ==========")
-    pergunta_gemma = "Considere a seguinte lista de pedidos:" \
-    f"{lista_de_pedidos}" \
-    f"É possível dizer que o pedido '{pedido}' pode ser adequadamente descrito por um item dessa lista?." \
-    "Se sim, retorne APENAS o texto EXATO do resumo do pedido correspondente na lista. Se não, retorne APENAS o texto 'Não'."
-
-    resumo = ollama.chat(
-        model="cnmoro/gemma3-gaia-ptbr-4b:q8_0",
-        messages=[{'role': 'user', 'content': f'{pergunta_gemma}'}],
-    )
-
-    return(resumo['message']['content'])
-
 
 # === Pega a comarca há mais tempo sem processar e entra no perfil ===
 
@@ -407,7 +351,18 @@ username = os.getenv("EPROC_USERNAME")
 password = os.getenv("EPROC_PASSWORD")
 pyotop_code = os.getenv("EPROC_PYOTP_CODE")
 
-eproc.login_no_eproc(navegador, username, password, pyotop_code)
+# Tentar login — se houver falha de conexão com o chromedriver, recria o navegador e tenta novamente uma vez.
+try:
+    eproc.login_no_eproc(navegador, username, password, pyotop_code)
+except Exception as e:
+    print(f"Aviso: falha no login inicial: {e}. Tentando recriar o navegador e reconectar.")
+    try:
+        navegador.quit()
+    except Exception:
+        pass
+    time.sleep(2)
+    navegador = eproc.novo_browser(pasta_downloads, headless=args.headless)
+    eproc.login_no_eproc(navegador, username, password, pyotop_code)
 
 if debug:
     print("[DEBUG] Login realizado.")
@@ -427,9 +382,40 @@ meus_localizadores = WebDriverWait(navegador, 20).until(
 )
 meus_localizadores.click()
 
-td_civel_minutar = WebDriverWait(navegador, 20).until(
-    EC.presence_of_element_located((By.XPATH, '//td[contains(text(), "MINUTAR")]'))
-)
+# Procurar a célula que contenha o texto "MINUTAR" (case-insensitive) — aumenta o
+# timeout e captura screenshot/page source em caso de Timeout para ajudar no debug.
+try:
+    td_civel_minutar = WebDriverWait(navegador, 30).until(
+        EC.presence_of_element_located((By.XPATH,
+            "//td[contains(translate(text(), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'MINUTAR')]")
+    ))
+except TimeoutException:
+    try:
+        navegador.save_screenshot('/tmp/01-monitora_timeout_minutar.png')
+    except Exception:
+        pass
+    try:
+        with open('/tmp/01-monitora_page_source.html', 'w', encoding='utf-8') as fh:
+            fh.write(navegador.page_source)
+    except Exception:
+        pass
+    print("Aviso: 'MINUTAR' não encontrado para esta comarca. Marcando como monitorado e encerrando execução para essa comarca.")
+    # Marcar como monitorado (atualiza data_ultimo_processamento) mesmo sem processar
+    try:
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE Comarcas SET data_ultimo_processamento = ? WHERE nome = ?",
+                (datetime.now().isoformat(), perfil)
+            )
+            conn.commit()
+        print(f"Campo 'data_ultimo_processamento' de '{perfil}' atualizado (marca como monitorado).")
+    except Exception as e:
+        print(f"Erro ao atualizar data_ultimo_processamento para marcar como monitorado: {type(e).__name__}: {e}")
+    try:
+        navegador.quit()
+    except Exception:
+        pass
+    sys.exit(0)
 
 td_seguinte = td_civel_minutar.find_element(By.XPATH, 'following-sibling::td[1]')
 
@@ -485,6 +471,21 @@ print("Tabelas 'temp' e 'temp_atp' criadas com sucesso.")
 
 # --- Parte 3: Extrai dados de todas as páginas e identifica ATP ---
 
+processos_planilha_comarca = set()
+try:
+    planilha_comarca_atual = client.open_by_key(comarca_spreadsheet_id)
+    aba_comarca_atual = planilha_comarca_atual.sheet1
+    valores_planilha_atual = aba_comarca_atual.col_values(2)
+    processos_planilha_comarca = {
+        valor.strip()
+        for valor in valores_planilha_atual[1:]
+        if valor and valor.strip()
+    }
+    print(f"Processos atuais na planilha da comarca '{perfil}': {len(processos_planilha_comarca)}")
+except Exception as e:
+    print(f"Erro ao ler processos da planilha da comarca '{perfil}': {type(e).__name__}: {e}")
+    print("Seguindo sem atalho de processos da planilha nesta execução.")
+
 pagina = 1
 total_inseridos = 0
 total_atp = 0
@@ -517,6 +518,10 @@ try:
             dias = colunas[-1].text.split('\n')[0]
 
             registro = [perfil, numero_processo, tipo, classe, "", "", "", dias, "0"]
+
+            if numero_processo in processos_planilha_comarca:
+                registros_temp.append(registro)
+                continue
 
             eh_atp = False
             icones = col_processo.find_elements(By.XPATH, ".//i | .//img | .//span[contains(@class, 'fa')] | .//span[contains(@class, 'icon')]")

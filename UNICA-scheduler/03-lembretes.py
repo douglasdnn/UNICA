@@ -7,53 +7,27 @@ parser = argparse.ArgumentParser(description="Insere lembretes no eproc")
 parser.add_argument("--headless", action="store_true", help="Rodar em modo headless (sem interface gráfica)")
 parser.add_argument("--debug", action="store_true", help="Imprimir mensagens de debug")
 parser.add_argument("--validade", type=int, default=20, help="Validade dos lembretes em dias (padrão: 20)")
-parser.add_argument("--comarca", type=str, help="Nome da comarca a processar")
+parser.add_argument("--comarca", type=str, help="Nome da comarca a processar (obrigatorio)")
 args = parser.parse_args()
 
 # ============================================================
 # CELL 1: Importações, setup, login no eproc
 # ============================================================
 
-from selenium import webdriver
-from selenium.webdriver.support.select import Select
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.alert import Alert
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import NoSuchElementException
-from selenium.common.exceptions import TimeoutException, WebDriverException
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.common.exceptions import ElementClickInterceptedException
 
-from datetime import datetime
-from datetime import timedelta
-from datetime import date
-from datetime import timezone
+from datetime import datetime, timedelta
 import platform
 import time
-import re
-import csv
 import os
-import requests
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-import psutil
-from bs4 import BeautifulSoup
 from eproc_driver import eproc as eproc
 import sqlite3
-from pathlib import Path
-import io
-import pandas as pd
-from contextlib import closing
 import gc
 
-import pyotp
-import configparser
-import keyring
 from dotenv import load_dotenv
 
 import gspread
@@ -146,105 +120,70 @@ with sqlite3.connect(db_path) as conn:
         conn.commit()
         print("Coluna 'resumo' adicionada à tabela lembretes.")
 
-# Lê TODAS as comarcas e sincroniza lembretes da planilha com o DB
-with sqlite3.connect(db_path) as conn:
-    comarcas = conn.execute(
-        "SELECT nome, spreadsheet_id FROM Comarcas WHERE spreadsheet_id IS NOT NULL AND spreadsheet_id != ''"
-    ).fetchall()
-
-total_inseridos_sync = 0
-total_existentes_sync = 0
-
-for nome_comarca, sid_comarca in comarcas:
-    try:
-        planilha_comarca = client.open_by_key(sid_comarca)
-        sheet_comarca = planilha_comarca.worksheet(nome_comarca)
-        all_rows = sheet_comarca.get_all_values()
-
-        lembretes_planilha = [
-            (row[0], row[1], row[4], row[5] if len(row) > 5 else "")
-            for row in all_rows[1:]
-            if len(row) > 4 and row[4] and len(row[4]) > 1
-        ]
-
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            inseridos = 0
-            existentes = 0
-
-            for unidade, processo, tipo, resumo in lembretes_planilha:
-                # Verifica se já existe no DB (mesmo unidade + processo + tipo)
-                cursor.execute(
-                    "SELECT 1 FROM lembretes WHERE unidade = ? AND processo = ? AND tipo = ?",
-                    (unidade, processo, tipo)
-                )
-                if cursor.fetchone():
-                    existentes += 1
-                else:
-                    cursor.execute(
-                        "INSERT INTO lembretes (unidade, processo, tipo, resumo) VALUES (?, ?, ?, ?)",
-                        (unidade, processo, tipo, resumo)
-                    )
-                    inseridos += 1
-
-            conn.commit()
-            total_inseridos_sync += inseridos
-            total_existentes_sync += existentes
-            print(f"  {nome_comarca}: {inseridos} novos, {existentes} já existentes")
-
-    except Exception as e:
-        print(f"  {nome_comarca}: erro ao acessar planilha ({type(e).__name__}: {e})")
-
-print(f"\nSincronização concluída: {total_inseridos_sync} novos lembretes, {total_existentes_sync} já existiam.")
-
 # ============================================================
-# CELL 3: Seleciona comarca com data_lembretes mais antiga para inserir
+# CELL 3: Seleciona a comarca chamada por parâmetro
 # ============================================================
 
 with sqlite3.connect(db_path) as conn:
     cursor = conn.cursor()
-    if comarca_solicitada:
-        cursor.execute(
-            """
-            SELECT nome, spreadsheet_id FROM Comarcas
-                        WHERE nome = ? COLLATE NOCASE
-              AND spreadsheet_id IS NOT NULL AND spreadsheet_id != ''
-            LIMIT 1
-            """,
-            (comarca_solicitada,)
-        )
-    else:
-        cursor.execute("""
-            SELECT nome, spreadsheet_id FROM Comarcas
-            WHERE spreadsheet_id IS NOT NULL AND spreadsheet_id != ''
-            ORDER BY
-                CASE WHEN data_lembretes IS NULL THEN 0 ELSE 1 END,
-                data_lembretes ASC
-            LIMIT 1
-        """)
+    if not comarca_solicitada:
+        print("Parametro obrigatorio ausente: --comarca")
+        exit(1)
+
+    cursor.execute(
+        """
+        SELECT nome, spreadsheet_id FROM Comarcas
+        WHERE nome = ? COLLATE NOCASE
+          AND spreadsheet_id IS NOT NULL AND spreadsheet_id != ''
+        LIMIT 1
+        """,
+        (comarca_solicitada,)
+    )
     resultado = cursor.fetchone()
 
 if resultado is None:
-    if comarca_solicitada:
-        print(f"Comarca solicitada não encontrada no banco de dados: {comarca_solicitada}")
-    else:
-        print("Nenhuma comarca encontrada no banco de dados.")
+    print(f"Comarca solicitada não encontrada no banco de dados: {comarca_solicitada}")
     exit(0)
 
 perfil, comarca_spreadsheet_id = resultado
-if comarca_solicitada:
-    print(f"\nComarca solicitada por parâmetro: {perfil}")
-else:
-    print(f"\nComarca selecionada para inserção: {perfil}")
+print(f"\nComarca solicitada por parâmetro: {perfil}")
 
-# Verifica se há lembretes pendentes para essa comarca
-with sqlite3.connect(db_path) as conn:
-    pendentes = conn.execute(
-        "SELECT COUNT(*) FROM lembretes WHERE unidade = ? AND data_lembrete IS NULL",
-        (perfil,)
-    ).fetchone()[0]
+# ============================================================
+# CELL 3.1: Lê lembretes da comarca chamada (em memória)
+# ============================================================
 
-if pendentes == 0:
+try:
+    planilha_comarca = client.open_by_key(comarca_spreadsheet_id)
+    sheet_comarca = planilha_comarca.worksheet(perfil)
+    all_rows = sheet_comarca.get_all_values()
+
+    lembretes_planilha = []
+    for row in all_rows[1:]:
+        if len(row) <= 4:
+            continue
+
+        tipo = (row[4] or "").strip()
+        if len(tipo) <= 1:
+            continue
+
+        unidade = (row[0] or "").strip() if len(row) > 0 else ""
+        processo = (row[1] or "").strip() if len(row) > 1 else ""
+        resumo = (row[5] or "").strip() if len(row) > 5 else ""
+
+        if not unidade:
+            unidade = perfil
+        if not processo:
+            continue
+
+        lembretes_planilha.append((unidade, processo, tipo, resumo))
+
+    print(f"Registros candidatos da comarca '{perfil}' na planilha: {len(lembretes_planilha)}")
+except Exception as e:
+    print(f"Erro ao ler lembretes da comarca '{perfil}': {type(e).__name__}: {e}")
+    exit(1)
+
+# Verifica se há lembretes na planilha para essa comarca
+if not lembretes_planilha:
     # Atualiza data_lembretes mesmo sem pendentes
     with sqlite3.connect(db_path) as conn:
         conn.execute(
@@ -252,10 +191,10 @@ if pendentes == 0:
             (datetime.now().isoformat(), perfil)
         )
         conn.commit()
-    print(f"Nenhum lembrete pendente para '{perfil}'. data_lembretes atualizada. Encerrando.")
+    print(f"Nenhum lembrete a processar para '{perfil}'. data_lembretes atualizada. Encerrando.")
     exit(0)
 
-print(f"Lembretes pendentes para '{perfil}': {pendentes}")
+print(f"Lembretes a processar para '{perfil}': {len(lembretes_planilha)}")
 
 # Inicia o navegador e loga no eproc
 navegador = eproc.novo_browser(pasta_downloads, headless=args.headless)
@@ -322,20 +261,33 @@ def insere_lembrete(navegador, texto, validade_dias):
 
 
 contador = 0
+ja_processados = 0
 
 try:
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM lembretes WHERE unidade = ? AND data_lembrete IS NULL", (perfil,))
-        lembretes_pendentes = cursor.fetchall()
+        total_planejados = len(lembretes_planilha)
+        print(f"Total de lembretes planejados: {total_planejados}")
 
-        total_pendentes = len(lembretes_pendentes)
-        print(f"Total de lembretes pendentes: {total_pendentes}")
+        for i, lembrete in enumerate(lembretes_planilha, 1):
+            unidade, processo, tipo_pedido, resumo = lembrete
+            num_processo = processo.replace(" ", "")
+            texto_lembrete = "UNICA RESUMOS - " + tipo_pedido
+            print(f"Processo {i} de {total_planejados}: {num_processo}. Lembrete: {texto_lembrete}")
 
-        for i, lembrete in enumerate(lembretes_pendentes, 1):
-            num_processo = lembrete[1].replace(" ", "")
-            texto_lembrete = "UNICA RESUMOS - " + lembrete[2]
-            print(f"Processo {i} de {total_pendentes}: {num_processo}. Lembrete: {texto_lembrete}")
+            cursor.execute(
+                """
+                SELECT rowid, data_lembrete FROM lembretes
+                WHERE unidade = ? AND processo = ? AND tipo = ?
+                LIMIT 1
+                """,
+                (unidade, processo, tipo_pedido)
+            )
+            existente = cursor.fetchone()
+            if existente and existente[1]:
+                ja_processados += 1
+                print(f"  Já processado anteriormente ({existente[1]}). Pulando.")
+                continue
 
             try:
                 navegador.switch_to.default_content()
@@ -344,10 +296,19 @@ try:
                 insere_lembrete(navegador, texto_lembrete, validade)
 
                 timestamp = datetime.now().strftime("%d/%m/%Y")
-                cursor.execute(
-                    "UPDATE lembretes SET data_lembrete = ? WHERE processo = ? AND unidade = ?",
-                    (timestamp, num_processo, lembrete[0])
-                )
+                if existente:
+                    cursor.execute(
+                        "UPDATE lembretes SET resumo = ?, data_lembrete = ? WHERE rowid = ?",
+                        (resumo, timestamp, existente[0])
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO lembretes (unidade, processo, tipo, resumo, data_lembrete)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (unidade, processo, tipo_pedido, resumo, timestamp)
+                    )
                 conn.commit()
                 contador += 1
             except Exception as e:
@@ -358,52 +319,7 @@ except Exception as e:
     print(f"Erro fatal durante inserção de lembretes: {e}")
 
 
-# ============================================================
-# CELL 5: Resumo dos lembretes inseridos + log em arquivo
-# ============================================================
-
-data_hoje = datetime.now().strftime("%d/%m/%Y")
-print(f"\nData de hoje: {data_hoje}")
-
-log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lembretes_log.txt")
-
-with sqlite3.connect(db_path) as conn:
-    cursor = conn.cursor()
-
-    # Resumo de TODAS as comarcas (lembretes inseridos hoje)
-    cursor.execute("""
-        SELECT unidade, tipo, COUNT(*) FROM lembretes
-        WHERE data_lembrete LIKE ?
-        GROUP BY unidade, tipo
-        ORDER BY unidade, tipo
-    """, (f"{data_hoje}%",))
-    resultados_todas = cursor.fetchall()
-
-with open(log_path, "a", encoding="utf-8") as log:
-    log.write(f"\n{'='*60}\n")
-    log.write(f"Execução: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
-    log.write(f"Validade dos lembretes: {validade} dias\n")
-    log.write(f"{'='*60}\n")
-
-    if not resultados_todas:
-        log.write("Nenhum lembrete inserido hoje.\n")
-        print("Nenhum lembrete inserido hoje.")
-    else:
-        comarca_atual = None
-        for unidade, tipo_pedido, quantidade in resultados_todas:
-            if unidade != comarca_atual:
-                comarca_atual = unidade
-                header = f"\nComarca: {unidade}"
-                log.write(header + "\n")
-                log.write("-" * len(header.strip()) + "\n")
-                print(header)
-            linha = f'  "UNICA RESUMOS - {tipo_pedido}" - {quantidade} processos'
-            log.write(linha + "\n")
-            print(linha)
-
-    log.write(f"\nTotal de lembretes inseridos nesta execução: {contador}\n")
-
-print(f"\nLog salvo em: {log_path}")
+print(f"Registros já processados (pulados): {ja_processados}")
 
 
 # ============================================================
@@ -417,33 +333,6 @@ with sqlite3.connect(db_path) as conn:
     )
     conn.commit()
     print(f"\ndata_lembretes atualizada para comarca '{perfil}'.")
-
-
-# ============================================================
-# Zera a tabela de lembretes se todos foram concluídos
-# ============================================================
-
-with sqlite3.connect(db_path) as conn:
-    pendentes_restantes = conn.execute(
-        "SELECT COUNT(*) FROM lembretes WHERE data_lembrete IS NULL"
-    ).fetchone()[0]
-
-    if pendentes_restantes == 0:
-        # Salva todos os lembretes em Historico antes de apagar
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS Historico (
-                tipo TEXT,
-                resumo TEXT
-            )
-        """)
-        salvos = conn.execute(
-            "INSERT INTO Historico (tipo, resumo) SELECT tipo, resumo FROM lembretes WHERE tipo IS NOT NULL AND tipo != ''"
-        ).rowcount
-        conn.execute("DELETE FROM lembretes")
-        conn.commit()
-        print(f"Todos os lembretes foram concluídos. {salvos} registros salvos em Historico. Tabela 'lembretes' zerada.")
-    else:
-        print(f"Ainda restam {pendentes_restantes} lembretes pendentes. Tabela mantida.")
 
 
 # ============================================================

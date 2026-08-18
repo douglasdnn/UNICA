@@ -13,56 +13,31 @@ args = parser.parse_args()
 # CELL 1: Importações, setup, login no eproc
 # ============================================================
 
-from selenium import webdriver
-from selenium.webdriver.support.select import Select
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.alert import Alert
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException
-from selenium.common.exceptions import TimeoutException, WebDriverException
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.common.exceptions import ElementClickInterceptedException
 
 from datetime import datetime
-from datetime import timedelta
-from datetime import date
-from datetime import timezone
 import platform
 import time
 import re
-import csv
 import os
-import requests
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-import psutil
-from bs4 import BeautifulSoup
 from eproc_driver import eproc as eproc
 import sqlite3
-from pathlib import Path
-import io
-import pandas as pd
-from contextlib import closing
-from pydoc import text
 import PyPDF2
 import gc
-import glob
 
-import pyotp
-import configparser
-import keyring
 from dotenv import load_dotenv
 
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-import ollama
-
+# `ollama` removido das importações — funções que o referenciam
+#+permancem definidas caso sejam usadas no futuro.
 if platform.system() == "Windows":
     pasta_downloads = r"D:\Douglas\Downloads"
 else:

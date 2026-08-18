@@ -10,12 +10,13 @@ import sys
 import sqlite3
 import os
 import re
+import shutil
 from collections import deque
 from datetime import datetime
 from pathlib import Path
 from queue import Queue
 
-from flask import Flask, Response, jsonify
+from flask import Flask, Response, jsonify, send_file
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
@@ -23,8 +24,16 @@ from dotenv import load_dotenv
 SCRIPT_DIR = Path(__file__).parent
 VENV_PYTHON = SCRIPT_DIR.parent / "ollama-venv" / "bin" / "python"
 
-# Permite rodar o scheduler fora do Docker carregando .env local.
-load_dotenv(SCRIPT_DIR / ".env", override=True)
+# Permite rodar o scheduler em diferentes contextos carregando .env local.
+ENV_CANDIDATES = [
+  SCRIPT_DIR / ".env",
+  Path.cwd() / ".env",
+  SCRIPT_DIR.parent / ".env",
+  SCRIPT_DIR.parent / "Ollama" / ".env",
+]
+for env_path in ENV_CANDIDATES:
+  if env_path.exists():
+    load_dotenv(env_path, override=True)
 
 SCRIPTS = [
     SCRIPT_DIR / "01-monitora.py",
@@ -44,6 +53,7 @@ DAY_WAIT_SECONDS = 20 * 60
 NIGHT_WAIT_SECONDS = 40 * 60
 NIGHTLY_LEMBRETES_HOUR = 22
 DB_PATH = SCRIPT_DIR / "DB" / "unica.db"
+LEMBRETES_LOG_PATH = SCRIPT_DIR / "lembretes_log.txt"
 
 app = Flask(__name__)
 log_buffer = deque(maxlen=1000)
@@ -51,6 +61,51 @@ stream_listeners = []
 state_lock = threading.Lock()
 execution_lock = threading.Lock()
 current_status = "Inicializando..."
+last_lembretes_log_archive = None
+
+
+def rollover_lembretes_log(run_date):
+  """Arquiva o log do dia e acrescenta o fechamento no fim do lembretes_log.txt."""
+  global last_lembretes_log_archive
+
+  timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+  archive_name = f"lembretes_log_{run_date.isoformat()}_{timestamp}.txt"
+  archive_path = SCRIPT_DIR / archive_name
+
+  if LEMBRETES_LOG_PATH.exists() and LEMBRETES_LOG_PATH.stat().st_size > 0:
+    shutil.copy2(LEMBRETES_LOG_PATH, archive_path)
+  else:
+    archive_path.write_text(
+      (
+        "Nenhum conteudo de lembretes foi registrado no ciclo anterior.\n"
+        f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n"
+      ),
+      encoding="utf-8",
+    )
+
+  needs_separator = LEMBRETES_LOG_PATH.exists() and LEMBRETES_LOG_PATH.stat().st_size > 0
+  with open(LEMBRETES_LOG_PATH, "a", encoding="utf-8") as new_log:
+    if needs_separator:
+      new_log.write("\n")
+    new_log.write("=" * 60 + "\n")
+    new_log.write(
+      f"Fechamento diário registrado em {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n"
+    )
+    new_log.write("=" * 60 + "\n\n")
+
+  last_lembretes_log_archive = archive_path
+  log(
+    "Lembretes: lote diario finalizado. "
+    f"Arquivo para download: {archive_path.name}. "
+    "Fechamento acrescentado ao lembretes_log.txt existente."
+  )
+
+
+def ensure_db_ready():
+  DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+  with sqlite3.connect(DB_PATH) as conn:
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("SELECT 1")
 
 
 def get_google_client():
@@ -98,9 +153,15 @@ def get_google_client():
 
 
 def sync_comarcas_from_sheet():
+  ensure_db_ready()
+
   spreadsheet_id = os.getenv("GOOGLE_SHEET_ID")
   if not spreadsheet_id:
-    raise RuntimeError("Variavel de ambiente GOOGLE_SHEET_ID nao definida.")
+    env_paths = ", ".join(str(p) for p in ENV_CANDIDATES if p.exists()) or "nenhum .env encontrado"
+    raise RuntimeError(
+      "Variavel de ambiente GOOGLE_SHEET_ID nao definida "
+      f"(envs lidos: {env_paths})."
+    )
 
   client = get_google_client()
   spreadsheet = client.open_by_key(spreadsheet_id)
@@ -372,7 +433,100 @@ def run_nightly_lembretes_batch(now, last_run_date):
         "Lote noturno de lembretes concluido: "
         f"{success} sucesso(s), {failed} falha(s)."
     )
+
+    try:
+      finalize_nightly_lembretes_data(now, success, failed, len(comarcas))
+      rollover_lembretes_log(run_date)
+    except Exception as e:
+      log(f"Falha ao gerar novo lembretes_log.txt apos lote noturno: {e}")
+
     return run_date
+
+
+def finalize_nightly_lembretes_data(now, success, failed, total_comarcas):
+  """Consolida o fechamento diário dos lembretes após processar todas as comarcas."""
+  data_hoje = now.strftime("%d/%m/%Y")
+
+  with sqlite3.connect(DB_PATH) as conn:
+    conn.execute(
+      """
+      CREATE TABLE IF NOT EXISTS Historico (
+        tipo TEXT,
+        resumo TEXT
+      )
+      """
+    )
+
+    resultados_todas = conn.execute(
+      """
+      SELECT unidade, tipo, COUNT(*)
+      FROM lembretes
+      WHERE data_lembrete LIKE ?
+      GROUP BY unidade, tipo
+      ORDER BY unidade, tipo
+      """,
+      (f"{data_hoje}%",),
+    ).fetchall()
+
+    total_hoje = conn.execute(
+      "SELECT COUNT(*) FROM lembretes WHERE data_lembrete LIKE ?",
+      (f"{data_hoje}%",),
+    ).fetchone()[0]
+
+    pendentes_restantes = conn.execute(
+      "SELECT COUNT(*) FROM lembretes WHERE data_lembrete IS NULL"
+    ).fetchone()[0]
+
+    salvos_historico = 0
+    limpou_tabela = False
+    if pendentes_restantes == 0:
+      salvos_historico = conn.execute(
+        "INSERT INTO Historico (tipo, resumo) SELECT tipo, resumo FROM lembretes WHERE tipo IS NOT NULL AND tipo != ''"
+      ).rowcount
+      conn.execute("DELETE FROM lembretes")
+      conn.commit()
+      limpou_tabela = True
+
+  needs_separator = LEMBRETES_LOG_PATH.exists() and LEMBRETES_LOG_PATH.stat().st_size > 0
+  with open(LEMBRETES_LOG_PATH, "a", encoding="utf-8") as log_file:
+    if needs_separator:
+      log_file.write("\n")
+    log_file.write(f"{'=' * 60}\n")
+    log_file.write(f"Fechamento diário: {now.strftime('%d/%m/%Y %H:%M:%S')}\n")
+    log_file.write(f"Comarcas processadas: {total_comarcas}\n")
+    log_file.write(f"Execuções ok: {success} | falhas: {failed}\n")
+    log_file.write(f"{'=' * 60}\n")
+
+    if not resultados_todas:
+      log_file.write("Nenhum lembrete inserido hoje.\n")
+    else:
+      comarca_atual = None
+      for unidade, tipo_pedido, quantidade in resultados_todas:
+        if unidade != comarca_atual:
+          comarca_atual = unidade
+          header = f"\nComarca: {unidade}"
+          log_file.write(header + "\n")
+          log_file.write("-" * len(header.strip()) + "\n")
+        linha = f'  "UNICA RESUMOS - {tipo_pedido}" - {quantidade} processos'
+        log_file.write(linha + "\n")
+
+    log_file.write(f"\nTotal de lembretes com data de hoje: {total_hoje}\n")
+    log_file.write(f"Pendentes restantes (data_lembrete nula): {pendentes_restantes}\n")
+    if limpou_tabela:
+      log_file.write(
+        "Todos os lembretes foram concluídos. "
+        f"{salvos_historico} registro(s) salvos em Historico. "
+        "Tabela 'lembretes' zerada.\n"
+      )
+    else:
+      log_file.write("Tabela 'lembretes' mantida por haver pendências.\n")
+
+  log(
+    "Fechamento diário de lembretes concluído: "
+    f"{total_hoje} registro(s) de hoje, "
+    f"{pendentes_restantes} pendente(s), "
+    f"limpeza={'sim' if limpou_tabela else 'não'}."
+  )
 
 
 def get_most_delayed_script():
@@ -443,7 +597,7 @@ def execute_script(script_path, comarca=None):
 
 def main():
     """Loop principal."""
-    set_status("Orquestrador iniciado")
+    set_status("Sincronizador iniciado")
     log(
         "Downtime dinamico: 20 minutos entre 12:00-19:00 e "
         "40 minutos fora desse periodo"
@@ -454,9 +608,14 @@ def main():
         f"apos {NIGHTLY_LEMBRETES_HOUR}:00"
     )
     log("-" * 60)
+    loaded_envs = [str(p) for p in ENV_CANDIDATES if p.exists()]
+    log(f".env detectados: {loaded_envs if loaded_envs else 'nenhum'}")
+    log(f"DB path: {DB_PATH}")
     nightly_lembretes_last_run_date = None
 
     try:
+        ensure_db_ready()
+
         while True:
             now = datetime.now()
 
@@ -508,7 +667,7 @@ def main():
             time.sleep(wait_seconds)
 
     except KeyboardInterrupt:
-        log("Orquestrador interrompido pelo usuario")
+        log("Sincronizador interrompido pelo usuario")
         sys.exit(0)
     except Exception as e:
         log(f"Erro fatal: {e}")
@@ -523,7 +682,7 @@ def index():
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Orquestrador UNICA</title>
+  <title>Sincronizador UNICA</title>
   <style>
     :root {
       color-scheme: dark;
@@ -657,6 +816,28 @@ def index():
       border-bottom: 1px solid var(--line);
       color: var(--muted);
     }
+    .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(125, 211, 252, 0.35);
+      color: var(--accent);
+      text-decoration: none;
+      background: rgba(125, 211, 252, 0.08);
+      font-size: 12px;
+      transition: background 0.2s ease, border-color 0.2s ease;
+      white-space: nowrap;
+    }
+    .btn-download:hover {
+      background: rgba(125, 211, 252, 0.18);
+      border-color: rgba(125, 211, 252, 0.65);
+    }
     #terminal {
       flex: 0 0 auto;
       min-height: 0;
@@ -710,8 +891,8 @@ def index():
   <div class="shell">
     <div class="header">
       <div>
-        <h1 class="title">Orquestrador UNICA</h1>
-        <p class="subtitle">Saída em tempo real do orquestrador</p>
+        <h1 class="title">Sincronizador UNICA</h1>
+        <p class="subtitle">Saída em tempo real do sincronizador</p>
       </div>
       <div class="badge" id="status">Carregando...</div>
     </div>
@@ -739,7 +920,10 @@ def index():
       </div>
       <div class="toolbar">
         <span>Porta 3001</span>
-        <span>Atualizacao ao vivo</span>
+        <div class="toolbar-right">
+          <span>Atualizacao ao vivo</span>
+          <a class="btn-download" href="/download/lembretes-log">Baixar lembretes_log</a>
+        </div>
       </div>
       <div id="terminal"></div>
     </div>
@@ -877,6 +1061,23 @@ def api_status():
 def api_logs():
     with state_lock:
         return jsonify({"logs": list(log_buffer)})
+
+
+@app.route("/download/lembretes-log")
+def download_lembretes_log():
+  archive_path = last_lembretes_log_archive
+  target_path = archive_path if archive_path and archive_path.exists() else LEMBRETES_LOG_PATH
+
+  if not target_path.exists():
+    LEMBRETES_LOG_PATH.write_text("", encoding="utf-8")
+    target_path = LEMBRETES_LOG_PATH
+
+  return send_file(
+    target_path,
+    as_attachment=True,
+    download_name=target_path.name,
+    mimetype="text/plain",
+  )
 
 
 @app.route("/stream")

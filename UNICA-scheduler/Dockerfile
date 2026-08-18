@@ -1,16 +1,18 @@
 FROM python:3.12-slim
 
-# Dependencias de SO para selenium/chrome headless e clipboard no container.
+# Dependências de sistema mínimas necessárias para instalar pacotes Python
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gcc \
-    libpq-dev \
+    libssl-dev \
+    libffi-dev \
+    make \
     xvfb \
     xauth \
-    xclip \
+    ca-certificates \
+    wget \
     chromium \
     chromium-driver \
-    ca-certificates \
     fonts-liberation \
     libasound2 \
     libatk-bridge2.0-0 \
@@ -42,16 +44,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender1 \
     libxss1 \
     libxtst6 \
-    wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 EXPOSE 3001
 
+# Copia o requirements minimal do scheduler e instala durante o build
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir --root-user-action=ignore --upgrade -r /tmp/requirements.txt
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    python -m pip install --no-cache-dir --root-user-action=ignore -r /tmp/requirements.txt
 
 COPY . .
 

@@ -1,0 +1,27 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama_container
+    ports:
+      - "11435:11434"
+    volumes:
+      - ./ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0  # <--- ADICIONE ISSO AQUI
+    restart: always
+
+  app:
+    image: douglasdnn/unica-resumos:latest
+    container_name: unica_resumos
+    ports:
+      - "5000:5000"
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - GCP_PROJECT_ID=planar-spring-468120-e0
+      - GCP_PRIVATE_KEY_ID=13c8665405b0a0933d025ee89fcdb10152c4e068
+      - GCP_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDtyqWf3HRQVkFY\nN7YDM18TcvOobtClzfmFd307DpgCtmcps461UPjKtkEaIIsd02huTgUKqTymygyu\nOMcyl3zoQc+GJRbkkbyK/0TaiRcH+oVYoOWBWd57iQYY45TFleJ9oS+EdyhpJSEh\nz1TgAJPME7ZxQ+UsLGUvCYKRp2s4sJeLXuNubpZmf4frCHTptMmfeAUFFrCLUAQy\n3xi713RdjxrEIn947PV9NHTq0i0l2ViXuaTfPvUKdLSHqRDFnrcCpNGAte0Rz6OD\nFuOYIxCdhMyH+CFFJ/rQv0maNV+N4fHf1o7PmtOfdYwcO/PHqvpqFQKImFXyhipE\nmF2sLkmZAgMBAAECggEAD3laNVCyhf7S8kNv1f38ECcxGXMao0uH0wpfTR5KQJTv\nmixb20s5YXGiQ2m+O9LjzxfHJrY0IvNvh0/dEJsAjxmnQEa+GmIsd4wchi8ZH1UL\nY+TWgogfXQEh8zEuH3x9OGkqjy904wC+SvWzw37uHz/iJbVCHtGFxR2UkFdpeA8P\ns6rpbL1M8vwH5WkxJKIv5czGV378w5vYl0zIccSFEyzjmdqQNZ1f3ZjFFqudxm86\n4yVanT3sUNGAC/qiHP5cg+qDDu64SZYVB9uYcN6hs2CiOm7Bod3w6TC1URbzxGxC\naOjjnBkmdmxT0Fn7GYTXAd7Eekj42NHNy5eBmMCtDQKBgQD7K2gbMZdqAGP9YGVr\nwjvij4sDo2V8eyV8TAYbn5lGsOrMkY5e62gTMBexpCOEUWj7ab/7Qq7Zvz7IRnZl\n6phPc74AZf6Qxf2CfhOeH+YPoxSSPljPr7yRKTd+oLYRQ4tIkOHwVWmVHcZ4hnRA\nq99Qjcprw/z7Rh79SxxMp1qdBQKBgQDyXWBCTvSD6oNlHkSUgJPWewTAqAJQb2Ru\nDScCVGKfzc8SthZ8p0ut8cXwC3fnNbZZ4rOzVIc/yms4S4qxAC7oPUdAbX3i8sN9\niizOnk5Y7qctEAraZInI4Rqp1jr1bY7IF5PmQVx5lW4sUgl2TSBYUPegND65g3h4\nuEb58B2+hQKBgQCq5e4AEs4jogBm9qALoi19Co5b+2GiQWhQGqpNQVrZbqdUafWl\nQCegZqi4hiZkccAs0Nd/7u9p2WaufsMwtV7NMMOnIb8EYrMLhx1yCeJP4Xatyx5C\nsiBr5M+NqWw4cuzigzI4hOVCQPA6McIH/uoDtXZ1vPT1Q9DyJ5kpzvUowQKBgQDR\nikOP8J1cc+PYB9w5HBU1KTTJsDgX/MaykzJ3xCdkjFaMkdtNOIKox9BfIjsvLfQT\nMHo3AEzSrRoYGM+3CjaD2X8Bx+g/z62Om2jz1lBceTEWN7l6adPqVhxsW+irimYY\nvrHDMB1YjQYs0VyW6EWftZjx7FmSoIUGsiPDMYM11QKBgQC2D7mMpc4KJLkMGBat\n855CmLXBg4MmOYsvwmm2yo5QEQNd8Wins/dS6RbRBH46gZmmbTCuBuO/VV4jKyr/\nXT4OSboF5UXQlFZJrzcGpGJFiXvEThOJT4ur2a2bCsrQAyNvoxpjZra+FkpyRnso\n1XzP1DXhhfIbm+VRfOLHQ0HmPg==\n-----END PRIVATE KEY-----\n
+      - GCP_CLIENT_EMAIL=servico1@planar-spring-468120-e0.iam.gserviceaccount.com
+      - GCP_CLIENT_ID=118313303981689413504
+      - RESUMOS_SPREADSHEET_ID=12eVCoiOYlW4oB-N-yCd5JPEqSDOGfON5IBN3AcvYGTQ

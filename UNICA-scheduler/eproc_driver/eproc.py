@@ -1,39 +1,28 @@
 # -*- coding: utf-8 -*-
 from selenium import webdriver
-from selenium.webdriver.support.select import Select
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.alert import Alert
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException
-from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 
 #Bibliotecas de Sistema
 import platform
 import time
 import re
-import csv
 import os
 import requests
 import psutil
-from bs4 import BeautifulSoup
-from eproc_driver import eproc as eproc
 import sqlite3
-from pathlib import Path
-import io
-import pandas as pd
 from contextlib import closing
 import tempfile
 
 #bibliotecas de configuração
 import pyotp
-import configparser
-import keyring
 
 #bibliotecas de automação
 import pyperclip
@@ -41,10 +30,6 @@ try:
     import pyautogui
 except BaseException:
     pyautogui = None
-
-#Bibliotecas de IA
-from gemini import gemini as gemini
-import ollama
 
 #Funções
 def novo_browser(download_directory, headless=False):  
@@ -110,7 +95,18 @@ def novo_browser(download_directory, headless=False):
     params = {'behavior' : 'allow', 'downloadPath': download_directory}
     browser.execute_cdp_cmd('Page.setDownloadBehavior', params)
 
-    browser.get('https://eproc1g.tjrs.jus.br/eproc/')
+    # Tentar carregar a página com algumas tentativas para lidar com desconexões temporárias
+    url_eproc = 'https://eproc1g.tjrs.jus.br/eproc/'
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            browser.get(url_eproc)
+            break
+        except Exception as e:
+            print(f"Aviso: falha ao acessar {url_eproc} (tentativa {attempt}/{max_retries}): {e}")
+            if attempt == max_retries:
+                raise
+            time.sleep(2)
     if not headless:
         browser.maximize_window()
 
@@ -613,20 +609,7 @@ def apaga_ultimo_lembrete(navegador):
     navegador.switch_to.alert.accept()
     time.sleep(2)
 
-def ollama_resumo(pedido):
-    print("========== Iniciando resumo com LLM ==========")
-    pergunta_gemma = "Considere o seguinte pedido." \
-    f"{pedido}" \
-    "Resuma, da maneira mais objetiva possível, o pedido. Não mencione dados pessoais, como nomes, números de documento, números de processo, valores, etc. " \
-    "O resumo deve ser genérico e breve (uma frase apenas, com o mínimo de palavras possível). " \
-    "Se tiver mais de um pedido, retorne uma frase para cada um." \
 
-    resumo = ollama.chat(
-        model="cnmoro/gemma3-gaia-ptbr-4b:q8_0",
-        messages=[{'role': 'user', 'content': f'{pergunta_gemma}'}],    
-    )
-
-    return(resumo['message']['content'])
 
 def trataMinuta(texto, tipo_ato):
     # Regex para capturar o texto a partir do tipo_ato até @NUMEROPROCESSOFORMATADO@
